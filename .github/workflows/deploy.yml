@@ -1,0 +1,268 @@
+name: Build and deploy
+on:
+  push:
+    branches:
+      - development
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build image with cache
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: auth-himfg:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+        
+      - name: Save image to artifact
+        run: |
+          docker save auth-himfg:test -o image.tar
+          echo "🐋 saved image..."
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: image.tar
+          retention-days: 1
+    
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    services:
+      postgres:
+        image: postgres:15
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: 12345678
+          POSTGRES_DB: test
+        options: >-
+          --health-cmd="pg_isready -U postgres -d test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: .
+        
+      - name: Load image
+        run: |
+          docker load -i image.tar
+          echo "📥 downloaded image..."
+      
+      - name: Create env file
+        run: |
+          echo "DJANGO_ENV=development" >> .env
+          echo "SECRET_KEY='${{ secrets.SECRET_KEY }}'" >> .env
+          echo "SUPERUSER_EMAIL=user@test.com" >> .env
+          echo "SUPERUSER_PASSWORD=Passw0rd." >> .env
+          echo "ACCESS_TOKEN_LIFETIME_MINUTES=60" >> .env
+          echo "REFRESH_TOKEN_LIFETIME_DAYS=1" >> .env
+          echo "DEBUG=TRUE" >> .env
+          echo "DEVELOPMENT_ORIGINS=http://127.0.0.1:8000,http://localhost:8000" >> .env
+          echo "ALLOWED_HOSTS_DEVELOPMENT_ORIGINS=localhost,127.0.0.1" >> .env
+          echo "PRIVATE_KEY_PATH=/run/secrets/private.pem" >> .env
+          echo "PUBLIC_KEY_PATH=/run/secrets/public.pem" >> .env
+          echo "DATABASE_ENGINE=django.db.backends.postgresql" >> .env
+          echo "DATABASE_NAME=test" >> .env
+          echo "DATABASE_USER=postgres" >> .env
+          echo "DATABASE_PASSWORD=12345678" >> .env
+          echo "DATABASE_HOST=localhost" >> .env
+          echo "DATABASE_PORT=5432" >> .env
+          echo "📝 env file created..."
+      
+      - name: Create keys
+        run: |
+          mkdir -p keys
+          openssl genrsa -out keys/private.pem 2048
+          openssl rsa -in keys/private.pem -pubout -out keys/public.pem
+          echo "🔑 created keys..."
+      
+      - name: Test image
+        run: |
+          export $(cat .env | xargs)
+          docker run --rm --name auth-api --env-file .env \
+          -v $(pwd)/keys/private.pem:/run/secrets/private.pem:ro \
+          -v $(pwd)/keys/public.pem:/run/secrets/public.pem:ro \
+          -d auth-himfg:test
+      
+      - name: Verify container execution
+        id: test
+        run: |
+          MAX_RETRIES=10
+          COUNT=0
+
+          while true; do
+            STATUS=$(docker inspect -f '{{.State.Status}}' auth-api 2>/dev/null)
+
+            if [ $? -ne 0 ]; then
+              echo "❌ Contenedor no encontrado"
+              exit 1
+            fi
+
+            case "$STATUS" in
+              running)
+                echo "✅ Contenedor ejecutandose"
+                exit 0
+                ;;
+              created|restarting)
+                echo "⏳ Contenedor iniciando"
+                sleep 2
+                COUNT=$((COUNT+1))
+                if [ $COUNT -ge $MAX_RETRIES ]; then
+                  echo "⏰ Tiempo de espera agotado"
+                  exit 1
+                fi
+                ;;
+              exited|dead)
+                echo "⚠️ Contenedor falló (estado: $STATUS)"
+                exit 1
+                ;;
+              *)
+                echo "ℹ️ Estado desconocido: $STATUS"
+                exit 1
+                ;;
+            esac
+          done
+  
+  push:
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      DOCKER_IMAGE_LATEST: ${{ steps.name.outputs.DOCKER_IMAGE_LATEST }}
+    steps:
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: .
+      
+      - name: Load image
+        run: |
+          docker load -i image.tar
+          echo "📥 downloaded image..."
+      
+      - name: Create image name
+        id: name
+        run: |
+          UNIX_TIMESTAMP=$(date +%s)
+          REPO_NAME=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]' | tr '/' '-')
+          ACTOR_NAME=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]' | tr '/' '-')
+          IMAGE_FULL_NAME=${{env.REGISTRY}}/$ACTOR_NAME/$REPO_NAME
+          echo "UNIX_TIMESTAMP=$UNIX_TIMESTAMP" >> $GITHUB_ENV
+          echo "IMAGE_FULL_NAME=$IMAGE_FULL_NAME" >> $GITHUB_ENV
+          echo "DOCKER_IMAGE_LATEST=$IMAGE_FULL_NAME:latest" >> $GITHUB_OUTPUT
+          echo "📧 assigned name..."
+      
+      - name: Tag image for GHCR
+        run: |
+          docker tag auth-himfg:test $IMAGE_FULL_NAME:$UNIX_TIMESTAMP
+          docker tag auth-himfg:test $IMAGE_FULL_NAME:latest
+          echo "📨 named image..."
+          
+      - name: Login in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Push image
+        run: |
+          docker push $IMAGE_FULL_NAME:$UNIX_TIMESTAMP
+          docker push $IMAGE_FULL_NAME:latest
+          echo "📤 uploaded image"
+    
+  deploy:
+    runs-on: ubuntu-latest
+    needs: push
+    permissions:
+      packages: read
+    steps:
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+
+            if ! docker network ls --format '{{.Name}}' | grep -q '^database$'; then
+                docker network create database
+            fi
+
+            if ! docker network ls --format '{{.Name}}' | grep -q '^backend$'; then
+                docker network create backend
+            fi
+
+            if ! docker volume ls --format '{{.Name}}' | grep -q '^auth_volume$'; then
+                  docker volume create auth_volume
+              fi
+
+            mkdir -p keys
+
+            [ -f keys/private.pem ] && rm keys/private.pem
+            [ -f keys/public.pem ] && rm keys/public.pem
+
+            openssl genrsa -out keys/private.pem 2048
+
+            openssl rsa -in keys/private.pem -pubout -out keys/public.pem
+
+            echo "DJANGO_ENV=$GITHUB_REF_NAME"> .env
+            echo "SECRET_KEY='${{ secrets.SECRET_KEY }}'" >> .env
+            echo "SUPERUSER_EMAIL=${{ secrets.SUPERUSER_EMAIL }}" >> .env
+            echo "SUPERUSER_PASSWORD=${{ secrets.SUPERUSER_PASSWORD }}" >> .env
+            echo "ACCESS_TOKEN_LIFETIME_MINUTES=60" >> .env
+            echo "REFRESH_TOKEN_LIFETIME_DAYS=1" >> .env
+            echo "DEBUG=False" >> .env
+            echo "PRODUCTION_ORIGIN=${{ secrets.PRODUCTION_ORIGIN }}" >> .env
+            echo "DEVELOPMENT_ORIGINS=${{ secrets.DEVELOPMENT_ORIGINS }}" >> .env
+            echo "ALLOWED_HOSTS_PRODUCTION_ORIGIN=${{ secrets.ALLOWED_HOSTS_PRODUCTION_ORIGIN }}" >> .env
+            echo "ALLOWED_HOSTS_DEVELOPMENT_ORIGINS=${{ secrets.ALLOWED_HOSTS_DEVELOPMENT_ORIGINS }}" >> .env
+            echo "PRIVATE_KEY_PATH=/run/secrets/private.pem" >> .env
+            echo "PUBLIC_KEY_PATH=/run/secrets/public.pem" >> .env
+            echo "DATABASE_ENGINE=django.db.backends.postgresql" >> .env
+            echo "DATABASE_NAME=${{ secrets.DATABASE_NAME }}" >> .env
+            echo "DATABASE_USER=${{ secrets.DATABASE_USER }}" >> .env
+            echo "DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}" >> .env
+            echo "DATABASE_HOST=${{ secrets.DATABASE_HOST }}" >> .env
+            echo "DATABASE_PORT=5432" >> .env
+
+            docker pull ${{ needs.push.outputs.DOCKER_IMAGE_LATEST }}
+
+            if docker ps -q -f name=auth-api; then
+                docker stop auth-api
+            fi
+
+            if docker ps -aq -f name=auth-api; then
+                docker rm auth-api
+            fi
+            
+            docker run --name auth-api --env-file .env --network backend \
+                --network database \
+                -v auth_volume:/app/staticfiles \
+                -v $(pwd)/keys/private.pem:/run/secrets/private.pem:ro \
+                -v $(pwd)/keys/public.pem:/run/secrets/public.pem:ro \
+                --expose 8001 \
+                -d ${{ needs.push.outputs.DOCKER_IMAGE_LATEST }}

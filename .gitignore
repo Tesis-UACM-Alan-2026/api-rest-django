@@ -1,0 +1,62 @@
+# Archivos y carpetas del sistema
+.DS_Store
+
+# Entornos virtuales
+.venv/
+env/
+*.pyc
+__pycache__/
+
+# Archivos sensibles
+.env
+
+# Base de datos local (solo si no deseas compartirla)
+db.sqlite3
+
+# Logs
+*.log
+
+# Dependencias y archivos de lock (según preferencia)
+Pipfile.lock
+
+# Archivos de configuración específicos del entorno
+*.swp
+
+#Eliminare el archivo sqlite
+db.sqlite3
+#Eliminar .idea
+.idea/
+#exclusion de logs
+proyecto.log
+proyecto.log.1
+proyecto.log.2
+notas.txt
+
+# Eliminar carpeta de vscode
+.vscode/
+
+# Ignorar el archivo generador por coverage
+.coverage
+htmlcov/
+
+# Ignorar archivos y carpetas del escaneo con sonar
+.sonar
+coverage.xml
+.tox/
+
+# Ignorar carpetas del empaquetamiento
+dist/
+almacen_general_backend_uam_uacm.egg-info/
+
+# Ignorear archivos estaticos
+staticfiles/
+
+#Ingnorar la clave
+keys/private.pem
+keys/public.pem
+*private.pem
+*public.pem
+
+#Ignorar html
+report.html
+md_report.md

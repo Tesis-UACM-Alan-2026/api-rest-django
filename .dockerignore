@@ -1,0 +1,88 @@
+# Archivos y carpetas del sistema
+.DS_Store
+
+# Entornos virtuales
+.venv/
+env/
+*.pyc
+__pycache__/
+
+# Archivos sensibles
+.env
+
+# Base de datos local (solo si no deseas compartirla)
+db.sqlite3
+
+# Logs
+*.log
+
+# Dependencias y archivos de lock (según preferencia)
+Pipfile.lock
+
+# Archivos de configuración específicos del entorno
+*.swp
+
+# Ignorar el archivo generador por coverage
+.coverage
+htmlcov/
+
+# Ignorar archivos y carpetas del escaneo con sonar
+.sonar
+coverage.xml
+.tox/
+
+# Ignorar carpetas del empaquetamiento
+dist/
+almacen_general_backend_uam_uacm.egg-info/
+
+# Ignorear archivos estaticos
+staticfiles/
+
+#Ingnorar la clave
+keys/private.pem
+keys/public.pem
+*private.pem
+*public.pem
+
+#Ignorar html
+report.html
+md_report.md
+
+# Configuracion de git
+.github
+.gitignore
+
+#Variables de entorno
+.env.example
+.env
+
+#Codigo
+generador_sk_django.py
+
+#Documentación
+README.md
+md_report.md
+
+#Sonar
+sonar-project.properties
+
+# IDE
+.idea
+.vscode
+
+#Logs del sistema
+proyecto.log
+proyecto.log.1
+proyecto.log.2
+
+# Archivos de test
+pytest.ini
+testUtils
+
+# Archivos de dependencias
+MANIFEST.in
+Pipfile
+pyproject.toml
+
+# GitHub
+.github

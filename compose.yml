@@ -1,0 +1,25 @@
+services:
+  auth:
+    build: .
+    container_name: auth-api
+    env_file:
+      - .env
+    volumes:
+      - ./keys/private.pem:/run/secrets/private.pem:ro
+      - ./keys/public.pem:/run/secrets/public.pem:ro
+      - auth_volume:/app/staticfiles
+    networks:
+      - database
+      - backend
+    expose:
+      - "8001"
+
+networks:
+  database:
+    external: true
+  backend:
+    external: true
+
+volumes:
+  auth_volume:
+    external: true

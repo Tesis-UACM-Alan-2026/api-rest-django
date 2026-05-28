@@ -1,0 +1,147 @@
+name: Test code
+
+on:
+  pull_request:
+    branches:
+      - development
+
+jobs:
+  install-deps:
+    runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.cache-deps.outputs.cache-hit }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+        
+      - name: Cache pip
+        id: cache-deps
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Scan dependencies
+        run: |
+          safety check -r requirements.txt || true
+  
+  lint:
+    needs: install-deps
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+       
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Restore pip cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run prospector
+        run: |
+          prospector --uses django -o grouped || true
+
+  tests:
+    needs: lint
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: 12345678
+          POSTGRES_DB: test
+        options: >-
+          --health-cmd="pg_isready -U postgres -d test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5 
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+       
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Restore pip cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate keys
+        run: |
+          mkdir -p keys
+          openssl genrsa -out keys/private.pem 2048
+          openssl rsa -in keys/private.pem -pubout -out keys/public.pem
+
+      - name: Generate env file
+        run: bash .github/scripts/env_test.sh '${{ secrets.SECRET_KEY }}'
+
+      - name: Config django environment
+        run: |
+          export $(cat .env | xargs)
+          python manage.py makemigrations
+          python manage.py migrate
+          python manage.py setup_roles
+
+      - name: Run Tests
+        run: |
+          export $(cat .env | xargs)
+          pytest -n auto \
+          --html=report.html --self-contained-html \
+          --md-report \
+          --md-report-output md_report.md
+
+      - name: Publish report
+        if: failure()
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: test-report
+          recreate: true
+          path: md_report.md
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            report.html
+          retention-days: 2
+      
+      
