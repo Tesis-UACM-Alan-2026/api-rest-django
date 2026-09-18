@@ -1,122 +1,169 @@
-# Proyecto HOSPITAL
+# Alan David Ramírez Navarrete
 
-Este proyecto utiliza Django como framework principal y `pipenv` para la gestión del entorno virtual y las dependencias.
+## Contacto
+- **Teléfono**: (+52) 5626265223
+- **Correo Electrónico**: soft.dev.alan@gmail.com
+- **GitHub**: https://github.com/EssPollo
+- **Youtube**:https://www.youtube.com/@AlanPolloNavarrete
 
-## Instrucciones de ambientación
+## Acerca de mí
+Hola que tal ! Bienvenido a mi REDMI. Conocido en el bajo mundo como "pollo" , Ingeniero de Software,Univesidad Autonoma de la Ciudad de México. Amante del GYM pero tambien de la comida grasosa.
+Si tienes alguna duda porfavor de contactarme a mis redes sociales o mi correo. Juntos podemos ser mejores ingenieros!
+## Proyecto:  API-REST con Django
+Proporcionar una proyecto simple sobre cómo llevar a cabo un back-end en Django
 
-Revisar el archivo .env.example
+### Tecnologías utilizadas
 
-### Variable para definir si se ejecuta en modo development o production
+* **Ubuntu 24.04.4**
+* **Python 3.12.3**
+* **Django 6.0.6**
+* **PostgreSQL 15 (Docker)**
+* **Docker**
+* **Docker Compose**
 
-DJANGO_ENV=
+# Ejecución del Proyecto
 
-### Variable para la llave secreta. Para generar el SK se debe ejecutar el archivo generador_sk_django.py
+## Requisitos Previos
 
-SECRET_KEY=
+Antes de ejecutar el proyecto es necesario tener instalado:
 
-### Correo del usuario administrador de Django
+* Docker
+* Docker Compose
 
-SUPERUSER_EMAIL=
+La aplicación Django y la base de datos PostgreSQL se ejecutan completamente dentro de contenedores Docker.
 
-### Contraseña del usuario administrador de Django
+---
 
-SUPERUSER_PASSWORD=
+## Pasos para Ejecutar el Proyecto
 
-### Minutos para el Access Token
+### 1. Clonar el repositorio
 
-ACCESS_TOKEN_LIFETIME_MINUTES=
+```bash
+git clone <URL_DEL_REPOSITORIO>
+cd back_end_django
+```
 
-### Días para el Refresh Token
+---
 
-REFRESH_TOKEN_LIFETIME_DAYS=
+### 2. Configurar variables de entorno
 
-### Ruta de la clave privada  
-PRIVATE_KEY_PATH=
+Crear un archivo `.env` en la raíz del proyecto con el siguiente contenido:
 
-### Ruta de la clave publica
-PUBLIC_KEY_PATH=
+```env
+DATABASE_ENGINE=django.db.backends.postgresql
+DATABASE_NAME=mi_basedatos
+DATABASE_USER=postgres
+DATABASE_PASSWORD=123
+DATABASE_HOST=db
+DATABASE_PORT=5432
+```
 
-## Generación de las claves en un directorio key (keys/private.pem y keys/public.pem)
+---
 
-openssl genrsa -out private.pem 2048
+### 3. Construir las imágenes Docker
 
-openssl rsa -in private.pem -pubout -out public.pem
+```bash
+docker compose build
+```
+
+---
+
+### 4. Levantar los contenedores
+
+```bash
+docker compose up -d
+```
+
+Verificar que los contenedores se encuentren en ejecución:
+
+```bash
+docker ps
+```
+
+Deberán aparecer los contenedores:
+
+* `api-rest-postgres`
+* `api-rest-django`
+
+---
+
+### 5. Verificar las migraciones
+
+El contenedor de Django ejecuta automáticamente las migraciones al iniciar. No obstante, pueden verificarse mediante:
+
+```bash
+docker compose exec django python manage.py showmigrations
+```
+
+---
+
+### 6. Crear un superusuario (opcional)
+
+```bash
+docker compose exec django python manage.py createsuperuser
+```
+
+---
+
+### 7. Acceder a la aplicación
+
+La aplicación estará disponible en:
+
+```text
+http://127.0.0.1:8000/
+```
+
+Documentación Swagger:
+
+```text
+http://127.0.0.1:8000/swagger/
+```
+
+Panel de administración:
+
+```text
+http://127.0.0.1:8000/admin/
+```
+
+---
+
+### 8. Visualizar los registros
+
+```bash
+docker compose logs django
+```
+
+o en tiempo real:
+
+```bash
+docker compose logs -f django
+```
+
+---
+
+### 9. Detener los contenedores
+
+```bash
+docker compose down
+```
+
+---
+
+### 10. Eliminar contenedores y volúmenes (opcional)
+
+```bash
+docker compose down -v
+```
+
+Este comando elimina los contenedores y el volumen persistente de PostgreSQL, por lo que todos los datos almacenados serán eliminados.
 
 
-## Instrucciones de instalación y ejecución
-
-### Instalar pipenv
-sudo apt install pipenv
-
-### Crear el entorno virtual con Python 3.12
-pipenv --python /usr/bin/python3
-
-### Activar el entorno virtual
-pipenv shell
-
-### Instalar las dependencias
-pip install -r requirements.txt
-
-### Generar la migraciones de user
-
-python manage.py makemigrations user
-
-### Generar la migraciones en general
-
-python manage.py makemigrations 
-
-### Crear las tablas de las migraciones
-
-python manage.py migrate
-
-### Generar un usuario administrador con valores en .env, los roles y permisos
-python manage.py setup_roles
-
-### Ejecutar el servidor de desarrollo
-python manage.py runserver
-
-### Abrir el navegador
-
-http://localhost:8000/swagger/
 
 
-# Estructura de la app user
+## Contacto para el proyecto
+Si estás interesado en cómo se realizó este proyecto paso a paso por favor contacta al:
 
-* **user/**
-
-    * **admin.py**            : Registro y configuración de modelos en el panel de administración de Django
-    * **apps.py**             : Configuración de la app (nombre, señales, etc.)
-    * **choices.py**          : Enumeraciones de constantes, como los roles de usuario
-    * **forms.py**            : Formularios personalizados para el panel admin u otros usos
-    * **logic.py** : Lógica de negocio desacoplada de las vistas; contiene funciones como crear_usuario, bloquear_usuario, etc.
-    * **managers.py**            : Gestor personalizado para el modelo User. Define los métodos para crear usuarios comunes y superusuarios de manera segura y compatible con Django    
-    * **messages.py**           : Mensajes del sistema para operaciones relacionadas con usuarios    
-    * **models.py**           : Modelos de la base de datos: User, Employee, PersonalData
-    * **permissions.py**           : Códigos de permisos del sistema para el modelo User    
-    * **serializers.py**      : Serializadores de DRF para transformar modelos en JSON y viceversa.  Actualmente en blanco el archivo ya que hubo separación en carpetas.
-    * **signals.py**          : Conexión de señales para ejecutar lógica automática tras eventos como crear usuario
-    * **tests.py**            : Pruebas unitarias de la app
-    * **urls.py**             : Rutas propias de la app (se incluye en las rutas del proyecto)
-    * **views.py**            : Vistas basadas en clases (API REST con Django REST Framework). Actualmente en blanco el archivo ya que hubo separación en carpetas.
-    * **migrations/**         : Archivos de migración generados automáticamente por Django
-        * **__init__.py**     :  Inicialización del módulo de migraciones
-    * **views/**         : Carpeta que contiene las vistas separadas por funcionalidad
-        * **auth_user.py**     :   Vista login (POST ..)
-        * **block_user.py**     :   Vista para bloquear usuarios (POST /api/users/{user_id}/block/)
-        * **create_user.py**     :  Vista para la creación de nuevos usuarios (POST a /api/users/create/)
-        * **list_user.py**     :  Vista para listar usuarios con filtros, búsqueda y ordenamiento (GET a /api/users/)
-    * **serializers/**         : Carpeta que contiene las vistas separadas por funcionalidad
-        * **block_user_serializer.py**     :   Serializador para el servicio de bloquear usuarios
-        * **custom_token_serializer.py**     :  Serializador para el manejo de tokens.
-        * **permissions_serializer.py**     :  Serrilizador para los permisos      
-        * **roles_serializer.py**     :  Serializador para  los roles
-        * **user_serializer.py**     :  Serializador para la gestión de usuarios. 
-    * **management**          : Carpeta con los comandos a ejecutar, en particular, setup_roles.py
-
-# Estructura del core
-
-* **core/**
-
-    * **exceptions.py**            : Manejador global de excepciones personalizado para estandarizar errores
-    * **middleware.py**             : Middleware personalizado para modificar o inspeccionar solicitudes y respuestas
-    * **responses.py**             : Funciones para generar respuestas estándar (success_response, error_response) en la AP
+**Dr. José Luis Quiroz Fabian**
+- **Número de cubículo**: T-169
+- **Ubicación**: Edificio T de CBI, Universidad Autónoma Metropolitana Unidad Iztapalapa
+- **Telefono**: 58 04 46 00 ext. 1169
