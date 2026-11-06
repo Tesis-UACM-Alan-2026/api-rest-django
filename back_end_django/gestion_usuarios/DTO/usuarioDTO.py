@@ -11,10 +11,6 @@ class UsuarioDTO:
     Define los datos que se transfieren entre la base de datos y la aplicación.
     """
     id: UUID
-    username: str
-    password: str
     email: str
     first_name: str
     last_name: str
-    is_active: bool
-    date_of_birth: date

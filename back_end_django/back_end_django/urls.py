@@ -1,4 +1,4 @@
-#############CODIGO 7############################
+#back_end_django/urls.py
 from django.contrib import admin
 from django.urls import path, include, re_path
 from rest_framework import permissions
@@ -11,7 +11,7 @@ schema_view = get_schema_view(
         default_version="v4",
         description="Documentación de la API",
         terms_of_service="https://www.tusitio.com/terms/",
-        contact=openapi.Contact(email="soporte@tusitio.com"),
+        contact=openapi.Contact(email="aramirez@lean4.it"),
         license=openapi.License(name="MIT License"),
     ),
     public=True,
@@ -20,9 +20,11 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/usuarios/", include("gestion_usuarios.urls")),  # <-- esta línea es la clave
-    path("api/productos/", include("gestion_productos.urls")), #Nuevo PRACTICA5
-    path("api/auth/", include("autentificacion.urls")), #Nuevo PRACTICA6 #tambien se mejoraron para usuarioos y productos
+    path("api/usuarios/", include("gestion_usuarios.urls")),
+    path("api/productos/", include("gestion_productos.urls")),
+    path("api/categorias/", include("gestion_categorias.urls")),
+    path("api/permisos/", include("gestion_permisos.urls")),
+    path("api/auth/", include("autentificacion.urls")),
     re_path(r"^swagger(?P<format>\.json|\.yaml)$", schema_view.without_ui(cache_timeout=0), name="schema-json"),
     path("swagger/", schema_view.with_ui("swagger", cache_timeout=0), name="schema-swagger-ui"),
     path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),

@@ -11,8 +11,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
-from decouple import config ##############CODIGO 9############################
-from datetime import timedelta ##############C############################
+from decouple import config
+from datetime import timedelta
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-g1xls^+wywr45&@*-pxt*t#ab1oe3w*3dj@)eg+80lwgkyt%a1'
+SECRET_KEY = config("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -32,21 +32,37 @@ ALLOWED_HOSTS = []
 # Application definition
 ####################FIGRUA 4############################
 INSTALLED_APPS = [
+
+    # Aplicaciones del proyecto
     "gestion_usuarios.apps.GestionUsuariosConfig",
-    "gestion_productos.apps.GestionProductosConfig", #PRACTICA 5
-    "autentificacion.apps.AutentificacionConfig", #PRACTICA 6
-    "rest_framework_simplejwt.token_blacklist", #PRACTICA 6
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'drf_yasg',
-    'rest_framework',
-    'corsheaders',
-    'django_filters',
+    "gestion_productos.apps.GestionProductosConfig",
+    "gestion_categorias.apps.GestionCategoriasConfig",
+    "gestion_permisos.apps.GestionPermisosConfig",
+    "autentificacion.apps.AutentificacionConfig",
+    # Django
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    # Librerías externas
+    "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
+    "drf_yasg",
+    "corsheaders",
+    "django_filters",
 ]
+
+AUTH_USER_MODEL = "gestion_usuarios.Usuario"
+
+LANGUAGE_CODE = "es-mx"
+
+TIME_ZONE = "America/Mexico_City"
+
+USE_I18N = True
+
+USE_TZ = True
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

@@ -58,8 +58,6 @@ class UsuarioDAO:
     @staticmethod
     def crear_usuario(
         username: str,
-        password: str,
-        date_of_birth: str,
         email: str,
         first_name: str,
         last_name: str,
@@ -79,12 +77,9 @@ class UsuarioDAO:
         try:
             usuario = Usuario.objects.create(
                 username=username,
-                password=make_password(password),
-                date_of_birth=date_of_birth,
                 email=email,
                 first_name=first_name,
                 last_name=last_name,
-                is_active=True,
             )
             return usuario
 
@@ -106,18 +101,6 @@ class UsuarioDAO:
         if not usuario:
             raise UsuarioNoEncontrado_404("Usuario no encontrado.")
 
-        # Validar username duplicado
-        if (
-            "username" in datos_actualizados
-            and datos_actualizados["username"] != usuario.username
-        ):
-            if Usuario.objects.filter(
-                username=datos_actualizados["username"]
-            ).exclude(id=usuario_id).exists():
-                raise ConflictoUsuario_409(
-                    "El nombre de usuario ya está registrado."
-                )
-
         # Validar email duplicado
         if (
             "email" in datos_actualizados
@@ -132,11 +115,8 @@ class UsuarioDAO:
 
         # Actualizar campos
         for campo, valor in datos_actualizados.items():
+            setattr(usuario, campo, valor)
 
-            if campo == "password":
-                usuario.password = make_password(valor)
-            else:
-                setattr(usuario, campo, valor)
 
         usuario.save()
 
