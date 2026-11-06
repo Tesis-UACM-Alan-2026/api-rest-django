@@ -1,10 +1,11 @@
 # autentificacion/tests.py
 
 from django.test import TestCase
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
 
+User = get_user_model()
 
 class TestLogin(TestCase):
     """Pruebas sobre los endpoints de autenticación JWT."""
@@ -17,9 +18,8 @@ class TestLogin(TestCase):
         self.url_logout = '/api/auth/logout/'
 
         self.user = User.objects.create_superuser(
-            username='testadmin',
-            password='TestPass123',
-            email='test@test.com',
+            email="admin@example.com",
+            password="Admin12345"
         )
 
     # ---------------- LOGIN ----------------
@@ -28,8 +28,8 @@ class TestLogin(TestCase):
         response = self.client.post(
             self.url_login,
             {
-                'username': 'testadmin',
-                'password': 'TestPass123',
+                'email': 'admin@example.com',
+                'password': 'Admin12345',
             },
             format='json'
         )
@@ -199,15 +199,14 @@ class TestLogin(TestCase):
 
     def test_logs_auditoria_bloqueado_para_usuario_normal(self):
         User.objects.create_user(
-            username='normal',
-            password='Normal123',
             email='normal@test.com',
+            password='Normal123',
         )
 
         login = self.client.post(
             self.url_login,
             {
-                'username': 'normal',
+                'email': 'normal@test.com',
                 'password': 'Normal123',
             },
             format='json'

@@ -2,25 +2,29 @@
 
 import logging
 from django.test import TestCase
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
 
-
+User = get_user_model()
 class TestEndpointsUsuarios(TestCase):
     """Pruebas sobre /api/users/ — autenticación y operaciones CRUD."""
 
     def setUp(self):
-        self.client     = APIClient()
-        self.url_login  = '/api/auth/token/'
-        self.url_users  = '/api/usuarios/users/'
+        self.client = APIClient()
+        self.url_login = '/api/auth/token/'
+        self.url_users = '/api/usuarios/users/'
+
+        self.admin = User.objects.create_superuser(
+            email="admin@example.com",
+            password="Admin12345"
+        )
 
         # Superusuario para pruebas con permisos completos
-        self.admin = User.objects.create_superuser(
-            username='admin_test',
-            password='Admin123',
-            email='admin@test.com',
-        )
+    self.user = User.objects.create_superuser(
+        email="admin@example.com",
+        password="Admin12345"
+    )
 
     def _token_admin(self):
         """Helper: devuelve el access token del admin."""

@@ -82,7 +82,7 @@ class LogoutView(APIView):
 
     def post(self, request):
         ip       = obtener_ip(request)
-        username = request.user.username
+        email = request.user.email
 
         refresh_token = request.data.get('refresh')
         if not refresh_token:
@@ -97,7 +97,7 @@ class LogoutView(APIView):
 
             logger_auditoria.info(
                 f"ip:{ip}] [accion:LOGOUT] "
-                f"[usuario:{username}] [id:{request.user.id}]"
+                f"[usuario:{email}] [id:{request.user.id}]"
             )
             return Response(
                 {"mensaje": "Sesión cerrada correctamente."},
@@ -105,7 +105,7 @@ class LogoutView(APIView):
             )
 
         except TokenError as e:
-            logger_tecnico.warning(f"Logout fallido para {username}: {e}")
+            logger_tecnico.warning(f"Logout fallido para {email}: {e}")
             return Response(
                 {"error": "Token inválido o ya expirado."},
                 status=status.HTTP_400_BAD_REQUEST,

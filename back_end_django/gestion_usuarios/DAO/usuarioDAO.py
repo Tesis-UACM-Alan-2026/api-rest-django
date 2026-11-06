@@ -30,16 +30,20 @@ class UsuarioDAO:
 ##################CODIGO 20############
     @staticmethod
     def obtener_usuario_por_id(usuario_id):
-        """
-        Obtiene un usuario por su ID si no ha sido eliminado.
+        try:
+            usuario = Usuario.objects.filter(id=usuario_id).first()
 
-        :param usuario_id: UUID del usuario a buscar.
-        :return: Instancia de Usuario o None si no se encuentra.
-        """
-        usuario = Usuario.objects.filter(id=usuario_id, is_deleted=False).first()
-        if not usuario:
-            raise UsuarioNoEncontrado_404()
-        return usuario
+            if usuario is None:
+                raise UsuarioNoEncontrado_404(
+                    "El usuario no existe."
+                )
+
+            return usuario
+
+        except UsuarioNoEncontrado_404:
+            raise
+        except DatabaseError:
+            raise ErrorInternoServidor_500()
 
     @staticmethod
     def activar_usuario(pk):
@@ -57,88 +61,123 @@ class UsuarioDAO:
   #######################CODIGO 22###############################################
     @staticmethod
     def crear_usuario(
-        username: str,
-        email: str,
-        first_name: str,
-        last_name: str,
+            email: str,
+            password: str,
+            first_name: str,
+            last_name: str,
     ):
         """
         Crea un nuevo usuario con validaciones.
         """
-        # Validar email
+
+        # Validar correo electrónico
         try:
             validate_email(email)
         except ValidationError:
-            raise DatosInvalidos_400()
+            raise DatosInvalidos_400("El correo electrónico no es válido.")
 
-        # Validar username (máximo 20 caracteres)
-        UsuarioParcialSerializer.validar_username(username)
+        # Validar campos obligatorios
+        if not password:
+            raise DatosInvalidos_400("La contraseña es obligatoria.")
+
+        if not first_name or not last_name:
+            raise DatosInvalidos_400(
+                "El nombre y apellido son obligatorios."
+            )
+
+        # Validar si el correo ya existe
+        if Usuario.objects.filter(email=email).exists():
+            raise ConflictoUsuario_409(
+                "El correo electrónico ya está registrado."
+            )
 
         try:
-            usuario = Usuario.objects.create(
-                username=username,
+            usuario = Usuario(
                 email=email,
                 first_name=first_name,
                 last_name=last_name,
             )
+
+            usuario.set_password(password)
+            usuario.save()
+
             return usuario
 
         except IntegrityError:
-            raise ConflictoUsuario_409()
+            raise ConflictoUsuario_409(
+                "El correo electrónico ya está registrado."
+            )
 
         except DatabaseError:
             raise ErrorInternoServidor_500()
     ##########Codigo 26 ########################################################
 
     @staticmethod
-    def actualizar_usuario(usuario_id, **datos_actualizados):
-        """
-        Actualiza completamente los datos de un usuario.
-        """
+    def actualizar_usuario(usuario_id, datos):
+        try:
+            usuario = UsuarioDAO.obtener_usuario_por_id(usuario_id)
 
-        usuario = UsuarioDAO.obtener_usuario_por_id(usuario_id)
+            campos_permitidos = [
+                "email",
+                "first_name",
+                "last_name",
+            ]
 
-        if not usuario:
-            raise UsuarioNoEncontrado_404("Usuario no encontrado.")
+            for campo, valor in datos.items():
+                if campo not in campos_permitidos:
+                    raise DatosInvalidos_400(
+                        f"El campo '{campo}' no está permitido."
+                    )
 
-        # Validar email duplicado
-        if (
-            "email" in datos_actualizados
-            and datos_actualizados["email"] != usuario.email
+                setattr(usuario, campo, valor)
+
+            if "email" in datos:
+                try:
+                    validate_email(usuario.email)
+                except ValidationError:
+                    raise DatosInvalidos_400(
+                        "El correo electrónico no es válido."
+                    )
+
+                existe = Usuario.objects.filter(
+                    email=usuario.email
+                ).exclude(id=usuario.id).exists()
+
+                if existe:
+                    raise ConflictoUsuario_409(
+                        "El correo electrónico ya está registrado."
+                    )
+
+            usuario.save()
+            return usuario
+
+        except (
+                UsuarioNoEncontrado_404,
+                DatosInvalidos_400,
+                ConflictoUsuario_409,
         ):
-            if Usuario.objects.filter(
-                email=datos_actualizados["email"]
-            ).exclude(id=usuario_id).exists():
-                raise ConflictoUsuario_409(
-                    "El correo electrónico ya está registrado."
-                )
-
-        # Actualizar campos
-        for campo, valor in datos_actualizados.items():
-            setattr(usuario, campo, valor)
-
-
-        usuario.save()
-
-        return usuario
+            raise
+        except IntegrityError:
+            raise ConflictoUsuario_409(
+                "No fue posible actualizar el usuario por un conflicto de datos."
+            )
+        except DatabaseError:
+            raise ErrorInternoServidor_500()
        #############Codigo 28#######################################################
     @staticmethod
-    def eliminar_usuario(pk):
-        """
-        Marca un usuario como eliminado en lugar de eliminarlo físicamente.
+    def eliminar_usuario(usuario_id):
+        try:
+            usuario = UsuarioDAO.obtener_usuario_por_id(usuario_id)
 
-        :param pk: ID del usuario a eliminar.
-        :return: Instancia del usuario eliminado.
-        """
-        usuario = UsuarioDAO.obtener_usuario_por_id(pk)
-        # este if es redundante porque obtener_usuario_por_id ya lanza excepción, pero lo dejo
-        if not usuario:
-            raise UsuarioNoEncontrado_404()  # <-- fatal corregido (faltaban paréntesis)
+            usuario.is_active = False
+            usuario.save(update_fields=["is_active"])
 
-        usuario.is_deleted = True
-        usuario.deleted_at = timezone.now()
-        usuario.save()
-        return usuario
+            return usuario
+
+        except UsuarioNoEncontrado_404:
+            raise
+        except DatabaseError:
+            raise ErrorInternoServidor_500()
 ###################Codigo 30########################################################
     CAMPOS_OPCIONALES = [
         "username",
@@ -201,21 +240,19 @@ class UsuarioDAO:
         return usuario 
     ##############Codigo 32########################################################
     @staticmethod
-    def restaurar_usuario(pk):
-        """
-        Restaura un usuario previamente marcado como eliminado lógicamente.
+    def restaurar_usuario(usuario_id):
+        try:
+            usuario = UsuarioDAO.obtener_usuario_por_id(usuario_id)
 
-        :param pk: ID del usuario a restaurar.
-        :return: Instancia del usuario restaurado.
-        """
-        usuario = Usuario.objects.filter(id=pk).first()
-        if not usuario:
-            raise UsuarioNoEncontrado_404("Usuario no encontrado.")
+            usuario.is_active = True
+            usuario.save(update_fields=["is_active"])
 
-        usuario.is_deleted = False
-        usuario.deleted_at = None
-        usuario.save()
-        return usuario  
+            return usuario
+
+        except UsuarioNoEncontrado_404:
+            raise
+        except DatabaseError:
+            raise ErrorInternoServidor_500()
 ##############Codigo 34#######################################################
     @staticmethod
     def verificar_email(pk):

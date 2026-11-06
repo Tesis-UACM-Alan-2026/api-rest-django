@@ -22,10 +22,9 @@ class Command(BaseCommand):
             return
 
         # Crear superusuario
-        User.objects.create_superuser(
-            username=username,
-            email=email,
-            password=password
+        self.user = User.objects.create_superuser(
+            email="admin@example.com",
+            password="Admin12345"
         )
 
         self.stdout.write(

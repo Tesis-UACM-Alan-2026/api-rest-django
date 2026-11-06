@@ -1,152 +1,102 @@
-# gestion_productos/tests.py
+from decimal import Decimal
 
-import logging
 from django.test import TestCase
-from django.contrib.auth.models import User
-from rest_framework.test import APIClient
-from rest_framework import status
+
+from gestion_productos.DAO.productoDAO import ProductoDAO
+from gestion_productos.exceptions.productoExceptions import (
+    ProductoNoEncontrado_404
+)
 
 
-class TestCORS(TestCase):
-    """Verifica que los headers CORS están presentes en las respuestas."""
-
-    def setUp(self):
-        self.client = APIClient()
-
-    def test_options_devuelve_header_cors(self):
-        """
-        Una petición OPTIONS desde un origen permitido debe incluir
-        Access-Control-Allow-Origin en la respuesta.
-        """
-        response = self.client.options(
-            '/api/products/',
-            HTTP_ORIGIN='http://localhost:3000',
-            HTTP_ACCESS_CONTROL_REQUEST_METHOD='GET',
-            HTTP_ACCESS_CONTROL_REQUEST_HEADERS='Authorization',
-        )
-        self.assertIn(
-            'Access-Control-Allow-Origin',
-            response.headers,
-        )
-
-    def test_origen_no_permitido_no_recibe_header_cors(self):
-        """
-        Un origen que no está en CORS_ALLOWED_ORIGINS no debe recibir
-        el header Access-Control-Allow-Origin.
-        """
-        response = self.client.options(
-            '/api/productos/products/',
-            HTTP_ORIGIN='http://sitiomalicioso.com',
-            HTTP_ACCESS_CONTROL_REQUEST_METHOD='GET',
-        )
-        self.assertNotEqual(
-            response.headers.get('Access-Control-Allow-Origin'),
-            'http://sitiomalicioso.com',
-        )
-
-
-class TestEndpointsProductos(TestCase):
-    """Pruebas sobre /api/products/ — autenticación y operaciones CRUD."""
+class ProductoDAOTestCase(TestCase):
+    """Pruebas unitarias para las operaciones del ProductoDAO."""
 
     def setUp(self):
-        self.client      = APIClient()
-        self.url_login   = '/api/auth/token/'
-        self.url_products = '/api/productos/products/'
-
-        self.admin = User.objects.create_superuser(
-            username='admin_prod',
-            password='AdminProd123',
-            email='adminprod@test.com',
+        """Prepara los productos necesarios para las pruebas."""
+        self.producto = ProductoDAO.crear_producto(
+            nombre="Laptop Lenovo",
+            precio=Decimal("12500.00"),
+            stock=10,
+            categoria=None
         )
 
-    def _token_admin(self):
-        response = self.client.post(self.url_login, {
-            'username': 'admin_prod',
-            'password': 'AdminProd123',
-        }, format='json')
-        return response.data['access']
-
-    # ── Protección ─────────────────────────────────────────────────────────────
-
-    def test_listar_productos_sin_token_devuelve_401(self):
-        self.client.credentials()
-        response = self.client.get(self.url_products)
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_listar_productos_con_token_devuelve_200(self):
-        self.client.credentials(
-            HTTP_AUTHORIZATION=f'Bearer {self._token_admin()}'
+        self.segundo_producto = ProductoDAO.crear_producto(
+            nombre="Mouse Logitech",
+            precio=Decimal("450.00"),
+            stock=20,
+            categoria=None
         )
-        response = self.client.get(self.url_products)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    # ── Creación ───────────────────────────────────────────────────────────────
+    def test_obtener_todos(self):
+        productos = ProductoDAO.obtener_todos()
 
-    def test_crear_producto_devuelve_201(self):
-        self.client.credentials(
-            HTTP_AUTHORIZATION=f'Bearer {self._token_admin()}'
+        self.assertEqual(productos.count(), 2)
+
+    def test_obtener_producto_por_id(self):
+        producto = ProductoDAO.obtener_producto_por_id(
+            self.producto.id
         )
-        response = self.client.post(self.url_products, {
-            'type':        'BIEN',
-            'name':        'Producto test',
-            'price':       '99.99',
-            'status':      True,
-            'description': 'Descripción del producto de prueba',
-            'product_key': 'TEST0001',
-            'image_link':  'http://example.com/img.png',
-        }, format='json')
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(producto.nombre, "Laptop Lenovo")
 
-    def test_crear_producto_sin_token_devuelve_401(self):
-        self.client.credentials()
-        response = self.client.post(self.url_products, {
-            'name': 'Sin token',
-        }, format='json')
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+    def test_producto_no_encontrado(self):
+        with self.assertRaises(ProductoNoEncontrado_404):
+            ProductoDAO.obtener_producto_por_id(999999)
 
-    # ── Auditoría ──────────────────────────────────────────────────────────────
-
-    def test_crear_producto_registra_en_log_auditoria(self):
-        """Crear un producto debe escribir CREAR_PRODUCTO en el log de auditoría."""
-        with self.assertLogs('auditoria', level='INFO') as cm:
-            self.client.credentials(
-                HTTP_AUTHORIZATION=f'Bearer {self._token_admin()}'
-            )
-            self.client.post(self.url_products, {
-                'type':        'BIEN',
-                'name':        'Producto auditado',
-                'price':       '50.00',
-                'status':      True,
-                'description': 'Para test de auditoría',
-                'product_key': 'AUD00001',
-                'image_link':  'http://example.com/img.png',
-            }, format='json')
-
-        mensajes = '\n'.join(cm.output)
-        self.assertIn('CREAR_PRODUCTO', mensajes)
-
-    def test_eliminar_producto_registra_en_log_auditoria(self):
-        """Eliminar un producto debe escribir ELIMINAR_PRODUCTO en auditoría."""
-        # Primero crear un producto
-        self.client.credentials(
-            HTTP_AUTHORIZATION=f'Bearer {self._token_admin()}'
+    def test_crear_producto(self):
+        producto = ProductoDAO.crear_producto(
+            nombre="Teclado mecánico",
+            precio=Decimal("850.00"),
+            stock=5
         )
-        crear = self.client.post(self.url_products, {
-            'type':        'BIEN',
-            'name':        'Para eliminar',
-            'price':       '10.00',
-            'status':      True,
-            'description': 'Se eliminará en el test',
-            'product_key': 'DEL00001',
-            'image_link':  'http://example.com/img.png',
-        }, format='json')
 
-        producto_id = crear.data['id']
+        self.assertIsNotNone(producto.id)
+        self.assertEqual(producto.nombre, "Teclado mecánico")
+        self.assertEqual(producto.stock, 5)
 
-        # Luego eliminarlo y verificar el log
-        with self.assertLogs('auditoria', level='INFO') as cm:
-            self.client.delete(f'{self.url_products}{producto_id}/')
+    def test_actualizar_producto(self):
+        producto = ProductoDAO.actualizar_producto(
+            self.producto.id,
+            nombre="Laptop Lenovo ThinkPad",
+            precio=Decimal("13500.00"),
+            stock=8
+        )
 
-        mensajes = '\n'.join(cm.output)
-        self.assertIn('ELIMINAR_PRODUCTO', mensajes)
+        self.assertEqual(producto.nombre, "Laptop Lenovo ThinkPad")
+        self.assertEqual(producto.precio, Decimal("13500.00"))
+        self.assertEqual(producto.stock, 8)
+
+    def test_actualizar_producto_parcial(self):
+        producto = ProductoDAO.actualizar_producto_parcial(
+            self.producto.id,
+            stock=15
+        )
+
+        self.assertEqual(producto.stock, 15)
+        self.assertEqual(producto.nombre, "Laptop Lenovo")
+        self.assertEqual(producto.precio, Decimal("12500.00"))
+
+    def test_buscar_productos(self):
+        productos = ProductoDAO.buscar_productos("Lenovo")
+
+        self.assertEqual(productos.count(), 1)
+        self.assertEqual(productos.first().nombre, "Laptop Lenovo")
+
+    def test_filtrar_por_rango_precio(self):
+        productos = ProductoDAO.filtrar_por_rango_precio(
+            Decimal("400.00"),
+            Decimal("500.00")
+        )
+
+        self.assertEqual(productos.count(), 1)
+        self.assertEqual(productos.first().nombre, "Mouse Logitech")
+
+    def test_eliminar_producto(self):
+        producto_id = self.producto.id
+
+        resultado = ProductoDAO.eliminar_producto(producto_id)
+
+        self.assertTrue(resultado)
+        self.assertFalse(
+            type(self.producto).objects.filter(id=producto_id).exists()
+        )

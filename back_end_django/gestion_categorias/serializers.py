@@ -9,6 +9,6 @@ class CategoriaSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "nombre",
-            "descripcion",
+            "descripcion"
         ]
         read_only_fields = ["id"]
