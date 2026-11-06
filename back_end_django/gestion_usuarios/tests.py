@@ -15,23 +15,19 @@ class TestEndpointsUsuarios(TestCase):
         self.url_login = '/api/auth/token/'
         self.url_users = '/api/usuarios/users/'
 
-        self.admin = User.objects.create_superuser(
+        self.user = User.objects.create_superuser(
             email="admin@example.com",
-            password="Admin12345"
+            password="Admin12345",
+            first_name="Administrador",
+            last_name="Pruebas"
         )
 
-        # Superusuario para pruebas con permisos completos
-    self.user = User.objects.create_superuser(
-        email="admin@example.com",
-        password="Admin12345"
-    )
-
     def _token_admin(self):
-        """Helper: devuelve el access token del admin."""
         response = self.client.post(self.url_login, {
-            'username': 'admin_test',
-            'password': 'Admin123',
+            'email': 'admin@example.com',
+            'password': 'Admin12345',
         }, format='json')
+
         return response.data['access']
 
     # ── Protección de endpoints ────────────────────────────────────────────────
@@ -66,12 +62,10 @@ class TestEndpointsUsuarios(TestCase):
             HTTP_AUTHORIZATION=f'Bearer {self._token_admin()}'
         )
         response = self.client.post(self.url_users, {
-            'username':   'nuevo_usuario',
             'email':      'nuevo@test.com',
             'password':   'NuevoPass123',
             'first_name': 'Nuevo',
             'last_name':  'Usuario',
-            'date_of_birth': '1990-01-01',
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -80,9 +74,7 @@ class TestEndpointsUsuarios(TestCase):
         """POST /api/users/ sin token debe devolver 401."""
         self.client.credentials()
         response = self.client.post(self.url_users, {
-            'username': 'sin_token',
             'email':    'sintoken@test.com',
-            'date_of_birth': '1990-01-01',
             'password': 'Pass123',
         }, format='json')
 
@@ -92,22 +84,17 @@ class TestEndpointsUsuarios(TestCase):
 
     def test_crear_usuario_registra_en_log_auditoria(self):
         """Crear un usuario debe escribir una entrada en el log de auditoría."""
-        log_auditoria = logging.getLogger('auditoria')
-
+        token = self._token_admin()
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f'Bearer {token}'
+        )
         with self.assertLogs('auditoria', level='INFO') as cm:
-            self.client.credentials(
-                HTTP_AUTHORIZATION=f'Bearer {self._token_admin()}'
-            )
             self.client.post(self.url_users, {
-                'username':   'auditado',
-                'email':      'auditado@test.com',
-                'password':   'AuditPass123',
+                'email': 'auditado@test.com',
+                'password': 'AuditPass123',
                 'first_name': 'Test',
-                'date_of_birth': '1990-01-01',
-                'last_name':  'Auditoria',
+                'last_name': 'Auditoria',
             }, format='json')
-
-        # Verificar que al menos una entrada menciona la acción
         mensajes = '\n'.join(cm.output)
         self.assertIn('CREAR_USUARIO', mensajes)
 
@@ -115,10 +102,9 @@ class TestEndpointsUsuarios(TestCase):
         """Un intento de login fallido debe quedar en el log de auditoría."""
         with self.assertLogs('auditoria', level='WARNING') as cm:
             self.client.post(self.url_login, {
-                'username': 'admin_test',
+                'email': 'admin@example.com',
                 'password': 'wrongpassword',
             }, format='json')
-
         mensajes = '\n'.join(cm.output)
         self.assertIn('LOGIN_FALLIDO', mensajes)
 
@@ -126,8 +112,8 @@ class TestEndpointsUsuarios(TestCase):
         """Un login exitoso debe quedar en el log de auditoría."""
         with self.assertLogs('auditoria', level='INFO') as cm:
             self.client.post(self.url_login, {
-                'username': 'admin_test',
-                'password': 'Admin123',
+                'email': 'admin@example.com',
+                'password': 'Admin12345',
             }, format='json')
 
         mensajes = '\n'.join(cm.output)
