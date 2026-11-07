@@ -22,3 +22,7 @@ class ProductoNoAutorizado_401(Exception):
 class ProductoProhibido_403(Exception):
     def __init__(self, message="Prohibido"):
         super().__init__(message)
+
+class DatosInvalidosError(Exeption):
+    def __init__(self, message):
+        super().__init__(message)

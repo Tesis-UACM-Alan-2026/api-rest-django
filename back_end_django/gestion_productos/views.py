@@ -1,22 +1,21 @@
 import logging
 from decimal import Decimal, InvalidOperation
-
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
-
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-
-from gestion_productos.DAO.productoDAO import ProductoDAO
+from gestion_productos.service import ProductoService
+from gestion_productos.VO.productoVO import ProductoVO
 from gestion_productos.exceptions.productoExceptions import ProductoNoEncontrado_404
 from .serializers import (
     ProductoCompletoSerializer,
     ProductoParcialSerializer
 )
-
-
+from rest_framework.permissions import IsAuthenticated
+from gestion_permisos.permissions import HasPermission
+productoService = ProductoService()
 logger = logging.getLogger(__name__)
 
 
@@ -31,17 +30,27 @@ def obtener_ip(request):
 
 
 class ProductoViewSet(viewsets.ViewSet):
+    
+    permission_classes = [IsAuthenticated, HasPermission]
+    permisos_requeridos = {
+        "list": "productos.ver",
+        "retrieve": "productos.ver",
+        "search": "productos.ver",
+        "filtrar_por_precio": "productos.ver",
+        "create": "productos.crear",
+        "update": "productos.editar",
+        "partial_update": "productos.editar",
+        "destroy": "productos.eliminar",
+    }
 
     @swagger_auto_schema(
         operation_summary="Listar productos",
         operation_description="Obtiene todos los productos registrados.",
-        responses={
-            200: ProductoCompletoSerializer(many=True)
-        }
+        responses={200: ProductoCompletoSerializer(many=True)}
     )
     def list(self, request):
-        productos = ProductoDAO.obtener_todos()
-        serializer = ProductoCompletoSerializer(productos, many=True)
+        productos_vo = productoService.listar_productos()
+        serializer = ProductoCompletoSerializer(productos_vo, many=True)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -55,8 +64,8 @@ class ProductoViewSet(viewsets.ViewSet):
     )
     def retrieve(self, request, pk=None):
         try:
-            producto = ProductoDAO.obtener_producto_por_id(pk)
-            serializer = ProductoCompletoSerializer(producto)
+            producto_vo = productoService.obtener_producto(pk)
+            serializer = ProductoCompletoSerializer(producto_vo)
 
             return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -85,21 +94,18 @@ class ProductoViewSet(viewsets.ViewSet):
             )
 
         try:
-            producto = ProductoDAO.crear_producto(
-                **serializer.validated_data
-            )
+            producto_vo = ProductoVO.desde_dict(serializer.validated_data)
+            creado_vo = productoService.crear_producto(producto_vo)
 
             logger.info(
                 "Producto creado. Usuario: %s | IP: %s | Producto ID: %s",
                 request.user,
                 obtener_ip(request),
-                producto.id
+                creado_vo.id
             )
 
-            respuesta = ProductoCompletoSerializer(producto)
-
             return Response(
-                respuesta.data,
+                ProductoCompletoSerializer(creado_vo).data,
                 status=status.HTTP_201_CREATED
             )
 
@@ -129,22 +135,18 @@ class ProductoViewSet(viewsets.ViewSet):
             )
 
         try:
-            producto = ProductoDAO.actualizar_producto(
-                pk,
-                **serializer.validated_data
-            )
+            producto_vo = ProductoVO.desde_dict(serializer.validated_data)
+            actualizado_vo = productoService.actualizar_producto(pk, producto_vo)
 
             logger.info(
                 "Producto actualizado. Usuario: %s | IP: %s | Producto ID: %s",
                 request.user,
                 obtener_ip(request),
-                producto.id
+                actualizado_vo.id
             )
 
-            respuesta = ProductoCompletoSerializer(producto)
-
             return Response(
-                respuesta.data,
+                ProductoCompletoSerializer(actualizado_vo).data,
                 status=status.HTTP_200_OK
             )
 
@@ -179,22 +181,18 @@ class ProductoViewSet(viewsets.ViewSet):
             )
 
         try:
-            producto = ProductoDAO.actualizar_producto_parcial(
-                pk,
-                **serializer.validated_data
-            )
+            producto_vo = ProductoVO.desde_dict(serializer.validated_data)
+            actualizado_vo = productoService.actualizar_producto_parcial(pk, producto_vo)
 
             logger.info(
                 "Producto actualizado parcialmente. Usuario: %s | IP: %s | Producto ID: %s",
                 request.user,
                 obtener_ip(request),
-                producto.id
+                actualizado_vo.id
             )
 
-            respuesta = ProductoCompletoSerializer(producto)
-
             return Response(
-                respuesta.data,
+                ProductoCompletoSerializer(actualizado_vo).data,
                 status=status.HTTP_200_OK
             )
 
@@ -219,7 +217,7 @@ class ProductoViewSet(viewsets.ViewSet):
     )
     def destroy(self, request, pk=None):
         try:
-            ProductoDAO.eliminar_producto(pk)
+            productoService.eliminar_producto(pk)
 
             logger.info(
                 "Producto eliminado. Usuario: %s | IP: %s | Producto ID: %s",
@@ -266,8 +264,8 @@ class ProductoViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        productos = ProductoDAO.buscar_productos(query)
-        serializer = ProductoCompletoSerializer(productos, many=True)
+        productos_vo = productoService.buscar_productos(query)
+        serializer = ProductoCompletoSerializer(productos_vo, many=True)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -302,9 +300,7 @@ class ProductoViewSet(viewsets.ViewSet):
 
         if precio_min is None or precio_max is None:
             return Response(
-                {
-                    "error": "Debe proporcionar precio_min y precio_max."
-                },
+                {"error": "Debe proporcionar precio_min y precio_max."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -320,9 +316,7 @@ class ProductoViewSet(viewsets.ViewSet):
 
             if precio_min > precio_max:
                 return Response(
-                    {
-                        "error": "El precio mínimo no puede ser mayor que el precio máximo."
-                    },
+                    {"error": "El precio mínimo no puede ser mayor que el precio máximo."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -332,11 +326,7 @@ class ProductoViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        productos = ProductoDAO.filtrar_por_rango_precio(
-            precio_min,
-            precio_max
-        )
-
-        serializer = ProductoCompletoSerializer(productos, many=True)
+        productos_vo = productoService.filtrar_por_rango_precio(precio_min, precio_max)
+        serializer = ProductoCompletoSerializer(productos_vo, many=True)
 
         return Response(serializer.data, status=status.HTTP_200_OK)

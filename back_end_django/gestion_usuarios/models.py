@@ -20,6 +20,8 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         max_length=254,
         unique=True
     )
+    email_verified = models.BooleanField(default=False)
+    email_verified_at = models.DateTimeField(null=True, blank=True)
 
     first_name = models.CharField(max_length=150)
 

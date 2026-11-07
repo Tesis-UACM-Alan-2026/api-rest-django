@@ -12,3 +12,6 @@ class CategoriaSerializer(serializers.ModelSerializer):
             "descripcion"
         ]
         read_only_fields = ["id"]
+        extra_kwargs = {
+            "nombre": {"validators": []}
+        }
