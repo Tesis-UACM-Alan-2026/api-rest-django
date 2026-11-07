@@ -1,4 +1,3 @@
-################CODIGO 6############################
 class DatosInvalidos_400(Exception):
     def __init__(self, message="Datos inválidos"):
         super().__init__(message)
@@ -23,6 +22,6 @@ class ProductoProhibido_403(Exception):
     def __init__(self, message="Prohibido"):
         super().__init__(message)
 
-class DatosInvalidosError(Exeption):
+class DatosInvalidosError(Exception):
     def __init__(self, message):
         super().__init__(message)

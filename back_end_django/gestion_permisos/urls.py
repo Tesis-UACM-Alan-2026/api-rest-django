@@ -2,8 +2,7 @@
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import PermisosViewSet
-
+from .views import PermisosViewSet, RolesViewSet
 # Crear un router y registrar el ViewSet
 router = DefaultRouter()
 router.register(r"permisos", PermisosViewSet, basename="permisos")
