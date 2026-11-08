@@ -1,3 +1,5 @@
+# gestion_productos/services.py
+
 from decimal import Decimal
 from typing import List
 
@@ -35,8 +37,8 @@ class ProductoService:
         return ProductoVO.desde_modelo(producto)
 
     def eliminar_producto(self, producto_id) -> None:
-        # Tu lógica actual de eliminación (ya existente)
-        ...
+        producto = ProductoDAO.eliminar_producto(producto_id)
+        return ProductoVO.desde_modelo(producto)
 
     def buscar_productos(self, texto: str) -> List[ProductoVO]:
         productos = ProductoDAO.buscar_productos(texto)

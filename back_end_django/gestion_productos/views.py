@@ -1,3 +1,4 @@
+# productos/views.py
 import logging
 from decimal import Decimal, InvalidOperation
 from rest_framework import status, viewsets
@@ -30,7 +31,7 @@ def obtener_ip(request):
 
 
 class ProductoViewSet(viewsets.ViewSet):
-    
+
     permission_classes = [IsAuthenticated, HasPermission]
     permisos_requeridos = {
         "list": "productos.ver",
