@@ -1,0 +1,1254 @@
+swagger: '2.0'
+info:
+  title: 'API de Gestión de Productos.'
+  description:"Aplicación de buenas prácticas en el desarrollo de API REST: estudio de caso utilizando Django".
+  termsOfService: https://www.example.com/terms/
+  contact:
+    email: correo@example.com
+  license:
+    name: Awesome License
+  version: v1
+basePath: /api/v1
+consumes:
+- application/json
+produces:
+- application/json
+securityDefinitions:
+  Bearer:
+    type: apiKey
+    name: Authorization
+    in: header
+    description: 'JWT Authorization header usando el esquema Bearer. Ejemplo: "Bearer
+      {token}"'
+security:
+- Bearer: []
+tags:
+- name: Auth
+  description: Autenticación y gestión de tokens JWT
+- name: Usuarios
+  description: Gestión de usuarios del sistema
+- name: Perfil
+  description: Operaciones sobre el usuario autenticado
+- name: Roles
+  description: Gestión de roles del sistema
+- name: Permisos
+  description: Gestión de permisos del sistema
+- name: Categorias
+  description: Gestión de categorías del catálogo
+- name: Productos
+  description: Gestión de productos del catálogo
+
+paths:
+
+  /auth/login:
+    post:
+      operationId: auth_login_create
+      summary: Iniciar sesión
+      description: 'Endpoint para iniciar sesión en el sistema. Valida las
+        credenciales del usuario y devuelve un par de tokens JWT: un
+        access_token de corta duración utilizado para autenticar las
+        solicitudes, y un refresh_token de mayor vigencia utilizado para
+        renovar el access_token sin requerir volver a iniciar sesión.'
+      security: []
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/TokenObtainPair'
+      responses:
+        '200':
+          description: Autenticación exitosa
+          schema:
+            $ref: '#/definitions/TokenResponse'
+        '400':
+          description: Solicitud mal formada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '401':
+          description: Credenciales inválidas
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Auth
+
+  /auth/refresh:
+    post:
+      operationId: auth_refresh_create
+      summary: Renovar token de acceso
+      description: Recibe un refresh_token válido y genera un nuevo par de
+        tokens de acceso y renovación.
+      security: []
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/TokenRefresh'
+      responses:
+        '200':
+          description: Token renovado exitosamente
+          schema:
+            $ref: '#/definitions/TokenResponse'
+        '401':
+          description: Refresh token inválido o expirado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Auth
+
+  /auth/verify:
+    post:
+      operationId: auth_verify_create
+      summary: Verificar token
+      description: Verifica si un access token JWT enviado por el cliente
+        es válido. Retorna un estado 200 si el token es válido o 401 si
+        el token es inválido o ha expirado.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/TokenVerify'
+      responses:
+        '200':
+          description: Token válido
+        '401':
+          description: Token inválido o expirado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Auth
+
+  /usuarios/:
+    get:
+      operationId: usuarios_list
+      summary: Listar usuarios
+      description: Obtiene una lista paginada de todos los usuarios
+        registrados en el sistema. Restringido a usuarios con permiso
+        'usuarios.view_usuario'.
+      parameters:
+      - name: search
+        in: query
+        description: Término de búsqueda por nombre o correo electrónico.
+        required: false
+        type: string
+      - name: ordering
+        in: query
+        description: Campo utilizado para ordenar los resultados.
+        required: false
+        type: string
+      - name: page
+        in: query
+        description: Número de página dentro del conjunto de resultados paginado.
+        required: false
+        type: integer
+      - name: perPage
+        in: query
+        description: Cantidad de resultados a devolver por página.
+        required: false
+        type: integer
+      responses:
+        '200':
+          description: Lista de usuarios obtenida exitosamente
+          schema:
+            $ref: '#/definitions/PaginatedUserList'
+        '401':
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '403':
+          description: Sin permisos
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Usuarios
+    post:
+      operationId: usuarios_create
+      summary: Crear usuario
+      description: Crea un nuevo usuario en el sistema. Restringido a
+        usuarios con permiso 'usuarios.add_usuario'. Los campos de
+        auditoría (createdAt, updatedAt) se asignan automáticamente.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/UsuarioCreate'
+      responses:
+        '201':
+          description: Usuario creado exitosamente
+          schema:
+            $ref: '#/definitions/Usuario'
+        '400':
+          description: Solicitud mal formada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '401':
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '403':
+          description: Sin permisos
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Usuarios
+    parameters: []
+
+  /usuarios/{id}/:
+    get:
+      operationId: usuarios_retrieve
+      summary: Obtener usuario
+      description: Obtiene el detalle de un usuario específico por su
+        identificador.
+      responses:
+        '200':
+          description: Usuario encontrado
+          schema:
+            $ref: '#/definitions/Usuario'
+        '404':
+          description: Usuario no encontrado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Usuarios
+    patch:
+      operationId: usuarios_partial_update
+      summary: Actualizar usuario
+      description: Actualiza parcialmente los datos de un usuario existente.
+        Restringido a usuarios con permiso 'usuarios.change_usuario'.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/UsuarioUpdate'
+      responses:
+        '200':
+          description: Usuario actualizado exitosamente
+          schema:
+            $ref: '#/definitions/Usuario'
+        '400':
+          description: Solicitud mal formada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '404':
+          description: Usuario no encontrado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Usuarios
+    delete:
+      operationId: usuarios_destroy
+      summary: Eliminar usuario
+      description: Elimina un usuario del sistema. Restringido a usuarios
+        con permiso 'usuarios.delete_usuario'.
+      responses:
+        '204':
+          description: Usuario eliminado exitosamente
+        '404':
+          description: Usuario no encontrado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Usuarios
+    parameters:
+    - name: id
+      in: path
+      required: true
+      type: integer
+
+  /usuarios/me/:
+    get:
+      operationId: usuarios_me_retrieve
+      summary: Perfil del usuario autenticado
+      description: Obtiene la información del usuario actualmente autenticado.
+      responses:
+        '200':
+          description: Usuario encontrado
+          schema:
+            $ref: '#/definitions/Usuario'
+        '401':
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Perfil
+    patch:
+      operationId: usuarios_me_partial_update
+      summary: Actualizar perfil propio
+      description: Permite al usuario autenticado actualizar parcialmente
+        sus propios datos. No permite modificar el correo electrónico ni
+        el rol asignado.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/UsuarioUpdateMe'
+      responses:
+        '200':
+          description: Perfil actualizado exitosamente
+          schema:
+            $ref: '#/definitions/Usuario'
+        '400':
+          description: Solicitud mal formada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '401':
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Perfil
+    parameters: []
+
+  /usuarios/me/cambiar-password/:
+    post:
+      operationId: usuarios_me_change_password_create
+      summary: Cambiar contraseña
+      description: Permite al usuario autenticado cambiar su propia
+        contraseña, proporcionando la contraseña actual y la nueva
+        contraseña con su confirmación.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/ChangePassword'
+      responses:
+        '200':
+          description: Contraseña actualizada exitosamente
+        '400':
+          description: Datos inválidos o contraseña actual incorrecta
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '401':
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Perfil
+    parameters: []
+
+  /roles/:
+    get:
+      operationId: roles_list
+      summary: Listar roles
+      description: Obtiene la lista de roles definidos en el sistema.
+      parameters:
+      - name: page
+        in: query
+        required: false
+        type: integer
+      - name: perPage
+        in: query
+        required: false
+        type: integer
+      responses:
+        '200':
+          description: Lista de roles obtenida exitosamente
+          schema:
+            $ref: '#/definitions/PaginatedRolList'
+      tags:
+      - Roles
+    post:
+      operationId: roles_create
+      summary: Crear rol
+      description: Crea un nuevo rol en el sistema. Restringido a usuarios
+        con permiso 'usuarios.add_rol'.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/RolCreate'
+      responses:
+        '201':
+          description: Rol creado exitosamente
+          schema:
+            $ref: '#/definitions/Rol'
+        '400':
+          description: Solicitud mal formada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Roles
+    parameters: []
+
+  /roles/asignar/:
+    post:
+      operationId: roles_assign_create
+      summary: Asignar rol a usuario
+      description: Asigna un rol existente a un usuario del sistema.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/AssignRol'
+      responses:
+        '200':
+          description: Rol asignado exitosamente
+        '400':
+          description: Solicitud mal formada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '404':
+          description: Usuario o rol no encontrado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Roles
+    parameters: []
+
+  /permisos/:
+    get:
+      operationId: permisos_list
+      summary: Listar permisos
+      description: Obtiene la lista de permisos disponibles en el sistema.
+      parameters:
+      - name: page
+        in: query
+        required: false
+        type: integer
+      - name: perPage
+        in: query
+        required: false
+        type: integer
+      responses:
+        '200':
+          description: Lista de permisos obtenida exitosamente
+          schema:
+            $ref: '#/definitions/PaginatedPermisoList'
+      tags:
+      - Permisos
+    parameters: []
+
+  /permisos/asignar/:
+    post:
+      operationId: permisos_assign_create
+      summary: Asignar permiso a rol
+      description: Asigna un permiso existente, identificado por su
+        codename, a un rol existente en el sistema.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/AssignPermisoToRol'
+      responses:
+        '200':
+          description: Permiso asignado exitosamente
+        '400':
+          description: Solicitud mal formada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '404':
+          description: Rol o permiso no encontrado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Permisos
+    parameters: []
+
+  /categorias/:
+    get:
+      operationId: categorias_list
+      summary: Listar categorías
+      description: Obtiene una lista paginada de las categorías del catálogo.
+      parameters:
+      - name: search
+        in: query
+        required: false
+        type: string
+      - name: ordering
+        in: query
+        required: false
+        type: string
+      - name: page
+        in: query
+        required: false
+        type: integer
+      - name: perPage
+        in: query
+        required: false
+        type: integer
+      responses:
+        '200':
+          description: Lista de categorías obtenida exitosamente
+          schema:
+            $ref: '#/definitions/PaginatedCategoriaList'
+      tags:
+      - Categorias
+    post:
+      operationId: categorias_create
+      summary: Crear categoría
+      description: Crea una nueva categoría en el catálogo. Restringido a
+        usuarios con permiso 'productos.add_categoria'.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/CategoriaCreate'
+      responses:
+        '201':
+          description: Categoría creada exitosamente
+          schema:
+            $ref: '#/definitions/Categoria'
+        '400':
+          description: Solicitud mal formada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '401':
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '403':
+          description: Sin permisos
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Categorias
+    parameters: []
+
+  /categorias/{id}/:
+    get:
+      operationId: categorias_retrieve
+      summary: Obtener categoría
+      description: Obtiene el detalle de una categoría específica.
+      responses:
+        '200':
+          description: Categoría encontrada
+          schema:
+            $ref: '#/definitions/Categoria'
+        '404':
+          description: Categoría no encontrada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Categorias
+    patch:
+      operationId: categorias_partial_update
+      summary: Actualizar categoría
+      description: Actualiza parcialmente los datos de una categoría
+        existente. Restringido a usuarios con permiso
+        'productos.change_categoria'.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/CategoriaUpdate'
+      responses:
+        '200':
+          description: Categoría actualizada exitosamente
+          schema:
+            $ref: '#/definitions/Categoria'
+        '400':
+          description: Solicitud mal formada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '404':
+          description: Categoría no encontrada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Categorias
+    delete:
+      operationId: categorias_destroy
+      summary: Eliminar categoría
+      description: Elimina una categoría del catálogo. Restringido a
+        usuarios con permiso 'productos.delete_categoria'. No se permite
+        eliminar categorías que tengan productos asociados.
+      responses:
+        '204':
+          description: Categoría eliminada exitosamente
+        '400':
+          description: La categoría tiene productos asociados
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '404':
+          description: Categoría no encontrada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Categorias
+    parameters:
+    - name: id
+      in: path
+      required: true
+      type: integer
+
+  /productos/:
+    get:
+      operationId: productos_list
+      summary: Listar productos
+      description: Obtiene una lista paginada de los productos del catálogo.
+        Permite filtrar por categoría mediante el parámetro 'categoria'.
+      parameters:
+      - name: search
+        in: query
+        description: Término de búsqueda por nombre o descripción.
+        required: false
+        type: string
+      - name: categoria
+        in: query
+        description: Identificador de la categoría por la cual filtrar.
+        required: false
+        type: integer
+      - name: ordering
+        in: query
+        required: false
+        type: string
+      - name: page
+        in: query
+        required: false
+        type: integer
+      - name: perPage
+        in: query
+        required: false
+        type: integer
+      responses:
+        '200':
+          description: Lista de productos obtenida exitosamente
+          schema:
+            $ref: '#/definitions/PaginatedProductoList'
+      tags:
+      - Productos
+    post:
+      operationId: productos_create
+      summary: Crear producto
+      description: Crea un nuevo producto en el catálogo. Restringido a
+        usuarios con permiso 'productos.add_producto'.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/ProductoCreate'
+      responses:
+        '201':
+          description: Producto creado exitosamente
+          schema:
+            $ref: '#/definitions/Producto'
+        '400':
+          description: Solicitud mal formada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '401':
+          description: No autenticado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '403':
+          description: Sin permisos
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Productos
+    parameters: []
+
+  /productos/{id}/:
+    get:
+      operationId: productos_retrieve
+      summary: Obtener producto
+      description: Obtiene el detalle de un producto específico.
+      responses:
+        '200':
+          description: Producto encontrado
+          schema:
+            $ref: '#/definitions/Producto'
+        '404':
+          description: Producto no encontrado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Productos
+    patch:
+      operationId: productos_partial_update
+      summary: Actualizar producto
+      description: Actualiza parcialmente los datos de un producto
+        existente. Restringido a usuarios con permiso
+        'productos.change_producto'.
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/ProductoUpdate'
+      responses:
+        '200':
+          description: Producto actualizado exitosamente
+          schema:
+            $ref: '#/definitions/Producto'
+        '400':
+          description: Solicitud mal formada
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '404':
+          description: Producto no encontrado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Productos
+    delete:
+      operationId: productos_destroy
+      summary: Eliminar producto
+      description: Elimina un producto del catálogo. Restringido a
+        usuarios con permiso 'productos.delete_producto'.
+      responses:
+        '204':
+          description: Producto eliminado exitosamente
+        '404':
+          description: Producto no encontrado
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      tags:
+      - Productos
+    parameters:
+    - name: id
+      in: path
+      required: true
+      type: integer
+
+definitions:
+
+  TokenObtainPair:
+    required:
+    - email
+    - password
+    type: object
+    properties:
+      email:
+        title: Email
+        type: string
+        format: email
+      password:
+        title: Password
+        type: string
+        format: password
+
+  TokenRefresh:
+    required:
+    - refresh
+    type: object
+    properties:
+      refresh:
+        title: Refresh
+        type: string
+
+  TokenVerify:
+    required:
+    - token
+    type: object
+    properties:
+      token:
+        title: Token
+        type: string
+
+  TokenResponse:
+    type: object
+    properties:
+      access:
+        title: Access token
+        type: string
+      refresh:
+        title: Refresh token
+        type: string
+
+  ErrorResponse:
+    type: object
+    properties:
+      statusCode:
+        title: Status code
+        type: integer
+      message:
+        title: Message
+        type: string
+      errors:
+        title: Errors
+        type: object
+        x-nullable: true
+
+  Rol:
+    required:
+    - id
+    - nombre
+    type: object
+    properties:
+      id:
+        title: Id
+        type: integer
+        readOnly: true
+      nombre:
+        title: Nombre
+        type: string
+        maxLength: 150
+      descripcion:
+        title: Descripción
+        type: string
+        x-nullable: true
+
+  RolCreate:
+    required:
+    - nombre
+    type: object
+    properties:
+      nombre:
+        title: Nombre
+        type: string
+        maxLength: 150
+        minLength: 1
+      descripcion:
+        title: Descripción
+        type: string
+        x-nullable: true
+
+  AssignRol:
+    required:
+    - usuarioId
+    - rolId
+    type: object
+    properties:
+      usuarioId:
+        title: Id de usuario
+        type: integer
+      rolId:
+        title: Id de rol
+        type: integer
+
+  Permiso:
+    required:
+    - id
+    - codename
+    - nombre
+    type: object
+    properties:
+      id:
+        title: Id
+        type: integer
+        readOnly: true
+      codename:
+        title: Codename
+        type: string
+        minLength: 1
+      nombre:
+        title: Nombre
+        type: string
+        minLength: 1
+      descripcion:
+        title: Descripción
+        type: string
+        x-nullable: true
+
+  AssignPermisoToRol:
+    required:
+    - rolId
+    - codenames
+    type: object
+    properties:
+      rolId:
+        title: Id de rol
+        type: integer
+      codenames:
+        description: Lista de codenames de permisos a asignar al rol.
+        type: array
+        items:
+          type: string
+          minLength: 1
+
+  Usuario:
+    required:
+    - id
+    - email
+    - nombre
+    - apellido
+    type: object
+    properties:
+      id:
+        title: Id
+        type: integer
+        readOnly: true
+      email:
+        title: Email
+        type: string
+        format: email
+      nombre:
+        title: Nombre
+        type: string
+        maxLength: 150
+      apellido:
+        title: Apellido
+        type: string
+        maxLength: 150
+      rol:
+        title: Rol
+        type: string
+        x-nullable: true
+      isActive:
+        title: Activo
+        type: boolean
+      createdAt:
+        title: Fecha de creación
+        type: string
+        format: date-time
+        readOnly: true
+      updatedAt:
+        title: Última actualización
+        type: string
+        format: date-time
+        readOnly: true
+
+  UsuarioCreate:
+    required:
+    - email
+    - password
+    - nombre
+    - apellido
+    type: object
+    properties:
+      email:
+        title: Email
+        type: string
+        format: email
+        maxLength: 254
+      password:
+        title: Contraseña
+        type: string
+        pattern: ^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$
+        minLength: 8
+      nombre:
+        title: Nombre
+        type: string
+        maxLength: 150
+        minLength: 1
+      apellido:
+        title: Apellido
+        type: string
+        maxLength: 150
+        minLength: 1
+      rolId:
+        title: Id de rol
+        type: integer
+        x-nullable: true
+
+  UsuarioUpdate:
+    type: object
+    properties:
+      nombre:
+        title: Nombre
+        type: string
+        maxLength: 150
+      apellido:
+        title: Apellido
+        type: string
+        maxLength: 150
+      rolId:
+        title: Id de rol
+        type: integer
+        x-nullable: true
+      isActive:
+        title: Activo
+        type: boolean
+
+  UsuarioUpdateMe:
+    type: object
+    properties:
+      nombre:
+        title: Nombre
+        type: string
+        maxLength: 150
+      apellido:
+        title: Apellido
+        type: string
+        maxLength: 150
+
+  ChangePassword:
+    required:
+    - currentPassword
+    - newPassword
+    - newPasswordConfirmation
+    type: object
+    properties:
+      currentPassword:
+        title: Contraseña actual
+        type: string
+        minLength: 8
+      newPassword:
+        title: Nueva contraseña
+        type: string
+        minLength: 8
+      newPasswordConfirmation:
+        title: Confirmación de nueva contraseña
+        type: string
+        minLength: 8
+
+  Categoria:
+    required:
+    - id
+    - nombre
+    type: object
+    properties:
+      id:
+        title: Id
+        type: integer
+        readOnly: true
+      nombre:
+        title: Nombre
+        type: string
+        maxLength: 100
+      descripcion:
+        title: Descripción
+        type: string
+        x-nullable: true
+      createdAt:
+        title: Fecha de creación
+        type: string
+        format: date-time
+        readOnly: true
+      updatedAt:
+        title: Última actualización
+        type: string
+        format: date-time
+        readOnly: true
+
+  CategoriaCreate:
+    required:
+    - nombre
+    type: object
+    properties:
+      nombre:
+        title: Nombre
+        type: string
+        maxLength: 100
+        minLength: 1
+      descripcion:
+        title: Descripción
+        type: string
+        x-nullable: true
+
+  CategoriaUpdate:
+    type: object
+    properties:
+      nombre:
+        title: Nombre
+        type: string
+        maxLength: 100
+      descripcion:
+        title: Descripción
+        type: string
+        x-nullable: true
+
+  Producto:
+    required:
+    - id
+    - nombre
+    - precio
+    - stock
+    - categoria
+    type: object
+    properties:
+      id:
+        title: Id
+        type: integer
+        readOnly: true
+      nombre:
+        title: Nombre
+        type: string
+        maxLength: 200
+      descripcion:
+        title: Descripción
+        type: string
+        x-nullable: true
+      precio:
+        title: Precio
+        type: number
+        format: decimal
+      stock:
+        title: Stock
+        type: integer
+      categoria:
+        title: Categoría
+        allOf:
+        - $ref: '#/definitions/Categoria'
+      disponible:
+        title: Disponible
+        type: boolean
+      createdAt:
+        title: Fecha de creación
+        type: string
+        format: date-time
+        readOnly: true
+      updatedAt:
+        title: Última actualización
+        type: string
+        format: date-time
+        readOnly: true
+
+  ProductoCreate:
+    required:
+    - nombre
+    - precio
+    - stock
+    - categoriaId
+    type: object
+    properties:
+      nombre:
+        title: Nombre
+        type: string
+        maxLength: 200
+        minLength: 1
+      descripcion:
+        title: Descripción
+        type: string
+        x-nullable: true
+      precio:
+        title: Precio
+        type: number
+        format: decimal
+        minimum: 0
+      stock:
+        title: Stock
+        type: integer
+        minimum: 0
+      categoriaId:
+        title: Id de categoría
+        type: integer
+      disponible:
+        title: Disponible
+        type: boolean
+        default: true
+
+  ProductoUpdate:
+    type: object
+    properties:
+      nombre:
+        title: Nombre
+        type: string
+        maxLength: 200
+      descripcion:
+        title: Descripción
+        type: string
+        x-nullable: true
+      precio:
+        title: Precio
+        type: number
+        format: decimal
+        minimum: 0
+      stock:
+        title: Stock
+        type: integer
+        minimum: 0
+      categoriaId:
+        title: Id de categoría
+        type: integer
+      disponible:
+        title: Disponible
+        type: boolean
+
+  PaginatedUserList:
+    required:
+    - count
+    - results
+    type: object
+    properties:
+      count:
+        type: integer
+      next:
+        type: string
+        format: uri
+        x-nullable: true
+      previous:
+        type: string
+        format: uri
+        x-nullable: true
+      results:
+        type: array
+        items:
+          $ref: '#/definitions/Usuario'
+
+  PaginatedRolList:
+    required:
+    - count
+    - results
+    type: object
+    properties:
+      count:
+        type: integer
+      next:
+        type: string
+        format: uri
+        x-nullable: true
+      previous:
+        type: string
+        format: uri
+        x-nullable: true
+      results:
+        type: array
+        items:
+          $ref: '#/definitions/Rol'
+
+  PaginatedPermisoList:
+    required:
+    - count
+    - results
+    type: object
+    properties:
+      count:
+        type: integer
+      next:
+        type: string
+        format: uri
+        x-nullable: true
+      previous:
+        type: string
+        format: uri
+        x-nullable: true
+      results:
+        type: array
+        items:
+          $ref: '#/definitions/Permiso'
+
+  PaginatedCategoriaList:
+    required:
+    - count
+    - results
+    type: object
+    properties:
+      count:
+        type: integer
+      next:
+        type: string
+        format: uri
+        x-nullable: true
+      previous:
+        type: string
+        format: uri
+        x-nullable: true
+      results:
+        type: array
+        items:
+          $ref: '#/definitions/Categoria'
+
+  PaginatedProductoList:
+    required:
+    - count
+    - results
+    type: object
+    properties:
+      count:
+        type: integer
+      next:
+        type: string
+        format: uri
+        x-nullable: true
+      previous:
+        type: string
+        format: uri
+        x-nullable: true
+      results:
+        type: array
+        items:
+          $ref: '#/definitions/Producto'
