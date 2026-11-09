@@ -1,114 +1,135 @@
-######codigo 9 practica 7############################
 import logging
-from rest_framework.views import APIView
-from rest_framework.response import Response
+
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework_simplejwt.views import TokenObtainPairView
-from autentificacion.serializers import CustomTokenObtainPairSerializer
-from django.contrib.auth import authenticate
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-logger_auditoria = logging.getLogger('auditoria')
-logger_tecnico   = logging.getLogger('back_end_django')
+from drf_yasg.utils import swagger_auto_schema
 
+from core.utils import obtener_ip, auditar
+from autentificacion.service import AutenticacionService
+from autentificacion.serializers import (
+    LoginSerializer,
+    SesionSerializer,
+    LogoutSerializer,
+)
+from autentificacion.exceptions.autenticacionExceptions import (
+    CredencialesInvalidas_401,
+    TokenInvalido_400,
+    TokenAjeno_403,
+)
 
-def obtener_ip(request):
-    """Extrae la IP real del cliente, considerando proxies."""
-    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded:
-        return x_forwarded.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR', 'IP desconocida')
+autenticacionService = AutenticacionService()
+
+logger = logging.getLogger(__name__)  # logs técnicos
 
 
 class LoginView(APIView):
     """
-    Autenticación manual con registro de auditoría.
+    Inicio de sesión con email y contraseña.
     Devuelve access y refresh token si las credenciales son válidas.
     """
-    permission_classes = []   # endpoint público
 
+    # Endpoint público. Sin autenticadores: si el cliente manda un token
+    # vencido en la cabecera, no debe rechazarse el login por eso.
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_summary="Iniciar sesión",
+        request_body=LoginSerializer,
+        security=[],
+        responses={
+            200: SesionSerializer(),
+            400: "Datos incompletos o inválidos.",
+            401: "Credenciales inválidas.",
+        },
+    )
     def post(self, request):
-        username = request.data.get('username', '').strip()
-        password = request.data.get('password', '')
-        ip       = obtener_ip(request)
+        ip = obtener_ip(request)
 
-        if not username or not password:
-            logger_auditoria.warning(
-                f"ip:{ip}] [accion:LOGIN_FALLIDO] "
-                f"[detalle:credenciales incompletas]"
+        serializer = LoginSerializer(data=request.data)
+        if not serializer.is_valid():
+            auditar(
+                ip, "LOGIN_FALLIDO", None, nivel=logging.WARNING,
+                detalle="credenciales incompletas"
+            )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data["email"]
+        password = serializer.validated_data["password"]
+
+        try:
+            sesion = autenticacionService.iniciar_sesion(email, password, request)
+
+        except CredencialesInvalidas_401 as error:
+            auditar(
+                ip, "LOGIN_FALLIDO", None, nivel=logging.WARNING,
+                usuario=email, detalle="credenciales incorrectas"
             )
             return Response(
-                {"error": "Se requieren username y password."},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"error": str(error)},
+                status=status.HTTP_401_UNAUTHORIZED
             )
 
-        user = authenticate(request, username=username, password=password)
+        auditar(ip, "LOGIN_EXITOSO", None, usuario=sesion.email, id=sesion.usuario_id)
 
-        if user is None:
-            # Registrar intento fallido — útil para detectar ataques de fuerza bruta
-            logger_auditoria.warning(
-                f"ip:{ip}] [accion:LOGIN_FALLIDO] "
-                f"[usuario:{username}] [detalle:credenciales incorrectas]"
-            )
-            return Response(
-                {"error": "Credenciales inválidas."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        # Credenciales correctas — generar tokens
-        refresh = RefreshToken.for_user(user)
-
-        logger_auditoria.info(
-            f"ip:{ip}] [accion:LOGIN_EXITOSO] "
-            f"[usuario:{username}] [id:{user.id}]"
-        )
-
-        return Response(
-            {
-                "refresh": str(refresh),
-                "access":  str(refresh.access_token),
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response(SesionSerializer(sesion).data, status=status.HTTP_200_OK)
 
 
 class LogoutView(APIView):
     """
     Cierre de sesión: invalida el refresh token añadiéndolo a la blacklist.
     """
+
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        operation_summary="Cerrar sesión",
+        request_body=LogoutSerializer,
+        responses={
+            200: "Sesión cerrada correctamente.",
+            400: "Token inválido o ya expirado.",
+            401: "No autenticado.",
+            403: "El token no pertenece al usuario autenticado.",
+        },
+    )
     def post(self, request):
-        ip       = obtener_ip(request)
-        email = request.user.email
+        ip = obtener_ip(request)
 
-        refresh_token = request.data.get('refresh')
-        if not refresh_token:
-            return Response(
-                {"error": "Se requiere el refresh token."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        serializer = LogoutSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        usuario = request.user
 
         try:
-            token = RefreshToken(refresh_token)
-            token.blacklist()   # invalida el token
-
-            logger_auditoria.info(
-                f"ip:{ip}] [accion:LOGOUT] "
-                f"[usuario:{email}] [id:{request.user.id}]"
+            autenticacionService.cerrar_sesion(
+                usuario.id,
+                serializer.validated_data["refresh"]
             )
+
+            auditar(ip, "LOGOUT", None, usuario=usuario.email, id=usuario.id)
+
             return Response(
                 {"mensaje": "Sesión cerrada correctamente."},
-                status=status.HTTP_200_OK,
+                status=status.HTTP_200_OK
             )
 
-        except TokenError as e:
-            logger_tecnico.warning(f"Logout fallido para {email}: {e}")
+        except TokenInvalido_400 as error:
+            logger.warning(f"Logout fallido para {usuario.email}: {error}")
             return Response(
-                {"error": "Token inválido o ya expirado."},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"error": str(error)},
+                status=status.HTTP_400_BAD_REQUEST
             )
-class CustomTokenObtainPairView(TokenObtainPairView):
-    serializer_class = CustomTokenObtainPairSerializer
+
+        except TokenAjeno_403 as error:
+            auditar(
+                ip, "LOGOUT_TOKEN_AJENO", None, nivel=logging.WARNING,
+                usuario=usuario.email, id=usuario.id
+            )
+            return Response(
+                {"error": str(error)},
+                status=status.HTTP_403_FORBIDDEN
+            )

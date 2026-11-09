@@ -1,3 +1,5 @@
+# gestion_productos/tests.py
+
 from decimal import Decimal
 
 from django.test import TestCase

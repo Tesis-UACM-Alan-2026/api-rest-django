@@ -1,50 +1,50 @@
-
-import logging
-
-from django.contrib.auth import authenticate
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from rest_framework_simplejwt.exceptions import AuthenticationFailed
+from rest_framework import serializers
 
 
-logger_auditoria = logging.getLogger("auditoria")
+class LoginSerializer(serializers.Serializer):
+    """Credenciales de inicio de sesión."""
+
+    email = serializers.EmailField()
+    password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+        style={"input_type": "password"},
+    )
 
 
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+class SesionSerializer(serializers.Serializer):
+    """Tokens que se devuelven al iniciar sesión."""
 
-    username_field = "email"
+    access = serializers.CharField(read_only=True)
+    refresh = serializers.CharField(read_only=True)
 
-    def validate(self, attrs):
-        email = attrs.get("email")
-        password = attrs.get("password")
 
-        request = self.context.get("request")
+class LogoutSerializer(serializers.Serializer):
+    """Refresh token que se desea invalidar."""
 
-        user = authenticate(
-            request=request,
-            email=email,
-            password=password
-        )
+    refresh = serializers.CharField(write_only=True)
 
-        ip = (
-            request.META.get("REMOTE_ADDR", "IP desconocida")
-            if request else "IP desconocida"
-        )
 
-        if user is None:
-            logger_auditoria.warning(
-                f"[ip:{ip}] [accion:LOGIN_FALLIDO] "
-                f"[usuario:{email}] "
-                f"[detalle:credenciales incorrectas]"
-            )
+# ---------------------------- Logs ----------------------------
+class _LogQuerySerializer(serializers.Serializer):
+    limite = serializers.IntegerField(
+        required=False, default=100, min_value=1, max_value=1000
+    )
 
-            raise AuthenticationFailed("Credenciales inválidas.")
 
-        data = super().validate(attrs)
+class LogAuditoriaQuerySerializer(_LogQuerySerializer):
+    usuario = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    accion = serializers.CharField(required=False, allow_blank=True, max_length=100)
 
-        logger_auditoria.info(
-            f"[ip:{ip}] [accion:LOGIN_EXITOSO] "
-            f"[usuario:{email}] "
-            f"[id:{user.id}]"
-        )
 
-        return data
+class LogTecnicoQuerySerializer(_LogQuerySerializer):
+    nivel = serializers.CharField(required=False, allow_blank=True, max_length=20)
+    modulo = serializers.CharField(required=False, allow_blank=True, max_length=100)
+
+
+class LogConsultaSerializer(serializers.Serializer):
+    total = serializers.IntegerField(read_only=True)
+    filtros_aplicados = serializers.DictField(
+        child=serializers.CharField(), read_only=True
+    )
+    entradas = serializers.ListField(child=serializers.CharField(), read_only=True)

@@ -1,0 +1,35 @@
+# .coveragerc
+
+[run]
+source = .
+# branch = True   # descomenta para medir también cobertura de ramas (más estricta)
+omit =
+    */migrations/*
+    */tests.py
+    */test_*.py
+    */*_tests.py
+    conftest.py
+    core/testing.py
+    manage.py
+    back_end_django/wsgi.py
+    back_end_django/asgi.py
+    */venv/*
+    */.venv/*
+    */site-packages/*
+
+[report]
+# Criterio de la tesis: mínimo 80 %. Si la cobertura total es menor,
+# pytest termina con error (útil también en integración continua).
+fail_under = 80
+show_missing = True
+skip_covered = False
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    def __str__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+
+[html]
+directory = htmlcov
+title = Cobertura de pruebas - API de Gestión de Productos

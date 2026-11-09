@@ -34,6 +34,9 @@ PERMISOS = [
     ("roles.editar", "Editar roles", "Modificar roles existentes."),
     ("roles.eliminar", "Eliminar roles", "Eliminar roles."),
     ("roles.asignar_permisos", "Asignar permisos a roles", "Asignar y quitar permisos de un rol."),
+
+    ("logs.ver_auditoria", "Consultar log de auditoría", "Leer el registro de auditoría (accesos, cambios, etc.)."),
+    ("logs.ver_tecnico", "Consultar log técnico", "Leer el registro técnico (advertencias y errores)."),
 ]
 
 # Roles base: nombre -> (descripcion, [codenames])

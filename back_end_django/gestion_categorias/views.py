@@ -6,6 +6,7 @@ from rest_framework.response import Response
 
 from drf_yasg.utils import swagger_auto_schema
 
+from core.utils import obtener_ip
 from gestion_permisos.permissions import HasPermission
 from gestion_categorias.service import CategoriaService
 from gestion_categorias.VO.categoriaVO import CategoriaVO
@@ -18,16 +19,6 @@ from .serializers import CategoriaSerializer
 
 categoriaService = CategoriaService()
 logger = logging.getLogger(__name__)
-
-
-def obtener_ip(request):
-    """Obtiene la dirección IP del cliente."""
-    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-
-    if x_forwarded_for:
-        return x_forwarded_for.split(",")[0].strip()
-
-    return request.META.get("REMOTE_ADDR")
 
 
 class CategoriasViewSet(viewsets.ViewSet):

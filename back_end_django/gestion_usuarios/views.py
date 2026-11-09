@@ -1,12 +1,15 @@
-#######CODIGO 17############
+#gestion_usuarios/views.py
+
 import logging
 from django.core.exceptions import ValidationError
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
+
 from drf_yasg.utils import swagger_auto_schema
 
+from core.utils import obtener_ip, auditar
 from gestion_permisos.permissions import HasPermission
 from gestion_usuarios.service import UsuarioService
 from gestion_usuarios.VO.usuarioVO import UsuarioEntradaVO
@@ -29,23 +32,6 @@ from gestion_usuarios.exceptions.usuarioExeptions import (
 usuarioService = UsuarioService()
 
 logger = logging.getLogger('gestion_usuarios')  # logs técnicos
-logger_auditoria = logging.getLogger('auditoria')  # logs de auditoría
-
-
-def obtener_ip(request):
-    """Extrae la IP real del cliente, considerando proxies."""
-    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded:
-        return x_forwarded.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR', 'IP desconocida')
-
-
-def auditar(ip, accion, request, **extra):
-    """Registra una línea de auditoría con formato uniforme."""
-    detalle = "".join(f" [{k}:{v}]" for k, v in extra.items())
-    logger_auditoria.info(
-        f"[ip:{ip}] [accion:{accion}] [realizado_por:{request.user}]{detalle}"
-    )
 
 
 class UsuarioViewSet(viewsets.ViewSet):
@@ -458,6 +444,10 @@ class UsuarioViewSet(viewsets.ViewSet):
             logger.warning(f"Error de validación al desactivar usuario con ID {pk}: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+        except ErrorInternoServidor_500 as e:
+            logger.error(f"Error interno del servidor al desactivar usuario {pk}: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     ############################ CAMBIAR CONTRASEÑA ############################
     @swagger_auto_schema(
         operation_summary="Cambiar contraseña del usuario",
@@ -507,6 +497,10 @@ class UsuarioViewSet(viewsets.ViewSet):
             logger.warning(f"Error de validación al cambiar contraseña para usuario con ID {pk}: {str(e)}")
             return Response({"error": e.messages}, status=status.HTTP_400_BAD_REQUEST)
 
+        except ErrorInternoServidor_500 as e:
+            logger.error(f"Error interno del servidor al cambiar contraseña del usuario {pk}: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     ############################ SOLICITAR RESET ############################
     @swagger_auto_schema(
         operation_summary="Solicitar restablecimiento de contraseña",
@@ -541,6 +535,10 @@ class UsuarioViewSet(viewsets.ViewSet):
         except UsuarioNoEncontrado_404 as e:
             logger.warning(f"Usuario no encontrado para email {email}: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+
+        except ErrorInternoServidor_500 as e:
+            logger.error(f"Error interno del servidor al solicitar restablecimiento para {email}: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     ############################ ROLES DEL USUARIO ############################
     @swagger_auto_schema(

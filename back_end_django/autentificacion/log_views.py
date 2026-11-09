@@ -1,91 +1,124 @@
-###############PRACTICA7 Codigo14########################################
-import os
-import re
-from pathlib import Path
-from rest_framework.views import APIView
-from rest_framework.response import Response
+import logging
+
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-LOGS_DIR = BASE_DIR / 'logs'
+from drf_yasg.utils import swagger_auto_schema
 
+from core.utils import obtener_ip, auditar
+from gestion_permisos.permissions import HasPermission
+from autentificacion.service import LogService
+from autentificacion.serializers import (
+    LogAuditoriaQuerySerializer,
+    LogTecnicoQuerySerializer,
+    LogConsultaSerializer,
+)
+from autentificacion.exceptions.autenticacionExceptions import LogNoDisponible_500
 
-def leer_log(nombre_archivo, filtros=None, limite=100):
-    """
-    Lee un archivo .log y devuelve sus líneas como lista.
-    Aplica filtros opcionales (dict de clave:valor a buscar en cada línea).
-    """
-    ruta = LOGS_DIR / nombre_archivo
-    if not ruta.exists():
-        return []
-
-    with open(ruta, encoding='utf-8') as f:
-        lineas = f.readlines()
-    lineas = [l for l in lineas if l.startswith('[')]
-    # Aplicar filtros si se proporcionaron
-    if filtros:
-        for clave, valor in filtros.items():
-            if valor:
-                lineas = [l for l in lineas if valor.lower() in l.lower()]
-
-    # Devolver las últimas N líneas (más recientes primero)
-    return [l.strip() for l in reversed(lineas[-limite:])]
+logService = LogService()
+logger = logging.getLogger(__name__)
 
 
 class LogAuditoriaView(APIView):
     """
-    GET /api/logs/auditoria/
-    Devuelve entradas del log de auditoría.
-    Solo accesible para administradores (is_staff=True).
+    GET /api/auth/logs/auditoria/
+    Devuelve entradas del log de auditoría (más recientes primero).
+    Requiere el permiso 'logs.ver_auditoria'.
 
     Parámetros opcionales de query:
-      ?usuario=Admin
+      ?usuario=admin@correo.com
       ?accion=LOGIN_EXITOSO
-      ?limite=50
+      ?limite=50          (1 a 1000, por defecto 100)
     """
-    permission_classes = [IsAuthenticated, IsAdminUser]
 
+    permission_classes = [IsAuthenticated, HasPermission]
+    permiso_requerido = "logs.ver_auditoria"
+
+    @swagger_auto_schema(
+        operation_summary="Consultar el log de auditoría",
+        query_serializer=LogAuditoriaQuerySerializer,
+        responses={
+            200: LogConsultaSerializer(),
+            400: "Parámetros inválidos.",
+            403: "Sin permiso.",
+            500: "No fue posible leer el log.",
+        },
+    )
     def get(self, request):
+        query = LogAuditoriaQuerySerializer(data=request.query_params)
+        if not query.is_valid():
+            return Response(query.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        datos = query.validated_data
         filtros = {
-            'usuario': request.query_params.get('usuario'),
-            'accion':  request.query_params.get('accion'),
+            "usuario": datos.get("usuario"),
+            "accion": datos.get("accion"),
         }
-        limite = int(request.query_params.get('limite', 100))
 
-        entradas = leer_log('auditoria.log', filtros=filtros, limite=limite)
+        try:
+            consulta = logService.consultar("auditoria", filtros, datos["limite"])
+        except LogNoDisponible_500 as error:
+            logger.error(f"Lectura de auditoria.log fallida: {error}")
+            return Response(
+                {"error": str(error)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-        return Response({
-            'total': len(entradas),
-            'filtros_aplicados': {k: v for k, v in filtros.items() if v},
-            'entradas': entradas,
-        }, status=status.HTTP_200_OK)
+        # Consultar la auditoría también queda auditado
+        auditar(
+            obtener_ip(request), "CONSULTAR_LOG_AUDITORIA", request,
+            filtros=consulta.filtros_aplicados or "ninguno",
+            resultados=consulta.total
+        )
+
+        return Response(LogConsultaSerializer(consulta).data, status=status.HTTP_200_OK)
 
 
 class LogTecnicoView(APIView):
     """
-    GET /api/logs/tecnico/
+    GET /api/auth/logs/tecnico/
     Devuelve entradas del log técnico (WARNING, ERROR, CRITICAL).
-    Solo accesible para administradores.
+    Requiere el permiso 'logs.ver_tecnico'.
 
     Parámetros opcionales:
       ?nivel=ERROR
       ?modulo=views
-      ?limite=50
+      ?limite=50          (1 a 1000, por defecto 100)
     """
-    permission_classes = [IsAuthenticated, IsAdminUser]
 
+    permission_classes = [IsAuthenticated, HasPermission]
+    permiso_requerido = "logs.ver_tecnico"
+
+    @swagger_auto_schema(
+        operation_summary="Consultar el log técnico",
+        query_serializer=LogTecnicoQuerySerializer,
+        responses={
+            200: LogConsultaSerializer(),
+            400: "Parámetros inválidos.",
+            403: "Sin permiso.",
+            500: "No fue posible leer el log.",
+        },
+    )
     def get(self, request):
+        query = LogTecnicoQuerySerializer(data=request.query_params)
+        if not query.is_valid():
+            return Response(query.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        datos = query.validated_data
         filtros = {
-            'nivel':  request.query_params.get('nivel'),
-            'modulo': request.query_params.get('modulo'),
+            "nivel": datos.get("nivel"),
+            "modulo": datos.get("modulo"),
         }
-        limite = int(request.query_params.get('limite', 100))
 
-        entradas = leer_log('tecnico.log', filtros=filtros, limite=limite)
+        try:
+            consulta = logService.consultar("tecnico", filtros, datos["limite"])
+        except LogNoDisponible_500 as error:
+            logger.error(f"Lectura de tecnico.log fallida: {error}")
+            return Response(
+                {"error": str(error)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-        return Response({
-            'total': len(entradas),
-            'filtros_aplicados': {k: v for k, v in filtros.items() if v},
-            'entradas': entradas,
-        }, status=status.HTTP_200_OK)
+        return Response(LogConsultaSerializer(consulta).data, status=status.HTTP_200_OK)

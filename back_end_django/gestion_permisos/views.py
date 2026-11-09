@@ -7,6 +7,7 @@ from rest_framework.response import Response
 
 from drf_yasg.utils import swagger_auto_schema
 
+from core.utils import obtener_ip, auditar
 from gestion_permisos.permissions import HasPermission
 from gestion_permisos.service import PermisoService, RolService
 from gestion_permisos.VO.permisoVO import PermisoVO
@@ -31,7 +32,6 @@ permisoService = PermisoService()
 rolService = RolService()
 
 logger = logging.getLogger('gestion_permisos')  # logs técnicos
-logger_auditoria = logging.getLogger('auditoria')  # logs de auditoría
 
 # Código HTTP que corresponde a cada excepción del módulo
 CODIGOS_HTTP = {
@@ -43,22 +43,6 @@ CODIGOS_HTTP = {
     PermisoEnUso_409: status.HTTP_409_CONFLICT,
     RolEnUso_409: status.HTTP_409_CONFLICT,
 }
-
-
-def obtener_ip(request):
-    """Extrae la IP real del cliente, considerando proxies."""
-    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded:
-        return x_forwarded.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR', 'IP desconocida')
-
-
-def auditar(ip, accion, request, **extra):
-    """Registra una línea de auditoría con formato uniforme."""
-    detalle = "".join(f" [{k}:{v}]" for k, v in extra.items())
-    logger_auditoria.info(
-        f"[ip:{ip}] [accion:{accion}] [realizado_por:{request.user}]{detalle}"
-    )
 
 
 def responder_error(error):

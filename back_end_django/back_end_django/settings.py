@@ -221,8 +221,8 @@ SWAGGER_SETTINGS = {
 # ─────────────────────────────────────────
 # Orígenes permitidos (ajusta según tu frontend)
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",   
-    "http://localhost:4200",   
+    "http://localhost:3000",
+    "http://localhost:4200",
     "http://127.0.0.1:3000",
 ]
 
@@ -321,7 +321,7 @@ LOGGING = {
             'formatter': 'tecnico_detallado',
             'encoding': 'utf-8',
         },
-            # Handler específico para logs de auditoría #NUEVO
+        # Handler específico para logs de auditoría #NUEVO
         'archivo_auditoria': {
             'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
@@ -368,6 +368,18 @@ LOGGING = {
         },
         # Logger de gestion_productos
         'gestion_productos': {
+            'handlers': ['consola', 'archivo_tecnico', 'archivo_debug'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        # Logger de gestion_categorias
+        'gestion_categorias': {
+            'handlers': ['consola', 'archivo_tecnico', 'archivo_debug'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        # Logger de gestion_permisos
+        'gestion_permisos': {
             'handlers': ['consola', 'archivo_tecnico', 'archivo_debug'],
             'level': 'DEBUG',
             'propagate': False,

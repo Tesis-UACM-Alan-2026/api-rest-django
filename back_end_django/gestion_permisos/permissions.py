@@ -23,7 +23,11 @@ class HasPermission(BasePermission):
     """
     Autoriza según los permisos que el usuario recibe a través de sus roles.
 
-    Cada ViewSet declara qué permiso exige cada acción:
+    Un APIView simple declara un único permiso:
+
+        permiso_requerido = "logs.ver_auditoria"
+
+    Un ViewSet declara qué permiso exige cada acción:
 
         permisos_requeridos = {
             "list": "productos.ver",
@@ -48,8 +52,13 @@ class HasPermission(BasePermission):
         if usuario.is_superuser:
             return True
 
-        requeridos = getattr(view, "permisos_requeridos", {})
-        codename = requeridos.get(getattr(view, "action", None))
+        # APIView simple: un único permiso para toda la vista
+        codename = getattr(view, "permiso_requerido", None)
+
+        # ViewSet: un permiso por acción
+        if codename is None:
+            requeridos = getattr(view, "permisos_requeridos", {})
+            codename = requeridos.get(getattr(view, "action", None))
 
         if codename is None:
             return False
